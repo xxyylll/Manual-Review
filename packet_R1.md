@@ -153,7 +153,6 @@ Record your answers in `packet_R1.csv`, one row per item, matched by `item_id`. 
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Stream<Arguments> data() throws Exception {
         // Function "Text" uses custom-formats which are locale specific
         // can't set the locale on a per-testrun execution, as some settings have been
@@ -174,6 +173,26 @@ Record your answers in `packet_R1.csv`, one row per item, matched by `item_id`. 
         // processFunctionGroup(data, SS.START_FUNCTIONS_ROW_INDEX, "Text");
 
         return data.stream();
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`ignoredFormulaTestCase`**
+
+```java
+    private static void ignoredFormulaTestCase(String cellFormula) {
+        // full row ranges are not parsed properly yet.
+        // These cases currently work in svn trunk because of another bug which causes the
+        // formula to get rendered as COLUMN($A$1:$IV$2) or ROW($A$2:$IV$3)
+        assumeFalse("COLUMN(1:2)".equals(cellFormula));
+        assumeFalse("ROW(2:3)".equals(cellFormula));
+
+        // currently throws NPE because unknown function "currentcell" causes name lookup
+        // Name lookup requires some equivalent object of the Workbook within xSSFWorkbook.
+        assumeFalse("ISREF(currentcell())".equals(cellFormula));
     }
 ```
 
@@ -351,7 +370,6 @@ public enum TestSpec {
 **`individuals`**
 
 ```java
-
     private static Set<String> individuals(OntModel m, String name, boolean direct) {
         return m.getOntClass(NS + name).individuals(direct).map(Resource::getLocalName).collect(Collectors.toSet());
     }
@@ -427,6 +445,48 @@ public enum ElasticsearchClientType {
     }
 ```
 
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createExpressionEvaluator`**
+
+```java
+    private ExpressionEvaluator createExpressionEvaluator(
+            MavenProject project, PluginDescriptor pluginDescriptor, Properties executionProperties) throws Exception {
+        ArtifactRepository repo = getLocalRepository();
+
+        MutablePlexusContainer container = (MutablePlexusContainer) getContainer();
+        MavenSession session = createSession(container, repo, executionProperties);
+        session.setCurrentProject(project);
+        session.getRequest().setRootDirectory(rootDirectory);
+
+        MojoDescriptor mojo = new MojoDescriptor();
+        mojo.setPluginDescriptor(pluginDescriptor);
+        mojo.setGoal("goal");
+
+        MojoExecution mojoExecution = new MojoExecution(mojo);
+
+        return new PluginParameterExpressionEvaluator(session, mojoExecution);
+    }
+```
+
+**`createSession`**
+
+```java
+@SuppressWarnings("deprecation")
+    private static MavenSession createSession(PlexusContainer container, ArtifactRepository repo, Properties properties)
+            throws CycleDetectedException, DuplicateProjectException {
+        MavenExecutionRequest request = new DefaultMavenExecutionRequest()
+                .setSystemProperties(properties)
+                .setGoals(Collections.emptyList())
+                .setBaseDirectory(new File(""))
+                .setLocalRepository(repo);
+
+        return new MavenSession(container, request, new DefaultMavenExecutionResult(), Collections.emptyList());
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -454,6 +514,28 @@ public enum ElasticsearchClientType {
         }
         final double p = new ChiSquareTest().chiSquareTest(counts);
         Assertions.assertFalse(p < 1e-3, () -> "p-value too small: " + p);
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`natural`**
+
+```java
+    private static int[] natural(int from, int to, int length) {
+        final int[] array = new int[length];
+        for (int i = 0; i < from; i++) {
+            array[i] = i - from;
+        }
+        for (int i = from; i < to; i++) {
+            array[i] = i - from;
+        }
+        for (int i = to; i < length; i++) {
+            array[i] = i - from;
+        }
+        return array;
     }
 ```
 
@@ -491,12 +573,31 @@ public enum ElasticsearchClientType {
 ### Parameter provider — `TestFixtures#getOutputArchiveNames`（commons-compress/src/test/java/org/apache/commons/compress/changes/TestFixtures.java）
 
 ```java
-
     static Set<String> getOutputArchiveNames() {
         final Set<String> outputStreamArchiveNames = ArchiveStreamFactory.DEFAULT.getOutputStreamArchiveNames();
         outputStreamArchiveNames.remove(ArchiveStreamFactory.AR); // TODO BUG?
         outputStreamArchiveNames.remove(ArchiveStreamFactory.SEVEN_Z); // TODO Does not support streaming.
         return outputStreamArchiveNames;
+    }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createChangeSet`**
+
+```java
+    private <A extends ArchiveEntry> ChangeSet<A> createChangeSet() {
+        return new ChangeSet<>();
+    }
+```
+
+**`archiveListDelete`**
+
+```java
+    private void archiveListDelete(final String prefix) {
+        archiveList.removeIf(entry -> entry.equals(prefix));
     }
 ```
 
@@ -600,7 +701,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Object[][] data() {
         return new Object[][] {
             {"log4j.simple", Collections.singletonList("simple")},
@@ -692,8 +792,20 @@ public enum AggregatorMergeStrategy
 **`mergeWithStrategy`**
 
 ```java
-        mergeWithStrategy(analysis1NullProjection, analysis2NullProjection, aggregatorMergeStrategy).getProjections()
-    );
+  private static SegmentAnalysis mergeWithStrategy(
+      SegmentAnalysis analysis1,
+      SegmentAnalysis analysis2,
+      AggregatorMergeStrategy strategy
+  )
+  {
+    return SegmentMetadataQueryQueryToolChest.finalizeAnalysis(
+        SegmentMetadataQueryQueryToolChest.mergeAnalyses(
+            TEST_DATASOURCE.getTableNames(),
+            analysis1,
+            analysis2,
+            strategy
+        ));
+  }
 ```
 
 ### To classify
@@ -798,8 +910,6 @@ public enum AggregatorMergeStrategy
 **`initTestDatasetVolumeChecker`**
 
 ```java
-
-
   public void initTestDatasetVolumeChecker(VolumeCheckResult pExpectedVolumeHealth) {
     this.expectedVolumeHealth = pExpectedVolumeHealth;
   }
@@ -882,6 +992,37 @@ public enum AggregatorMergeStrategy
     }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`visitBREAKPOINT`**
+
+```java
+@Override
+                        public void visitBREAKPOINT(final BREAKPOINT obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
+**`visitIMPDEP1`**
+
+```java
+@Override
+                        public void visitIMPDEP1(final IMPDEP1 obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
+**`visitIMPDEP2`**
+
+```java
+@Override
+                        public void visitIMPDEP2(final IMPDEP2 obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -933,6 +1074,106 @@ public enum AggregatorMergeStrategy
     }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createRNG`**
+
+```java
+    private static UniformRandomProvider createRNG(long seed) {
+        // The algorithm for SplittableRandom with the default increment passes:
+        // - Test U01 BigCrush
+        // - PractRand with at least 2^42 bytes (4 TiB) of output
+        return new SplittableRandom(seed)::nextLong;
+    }
+```
+
+**`nextDouble`**
+
+```java
+@Override
+            public double nextDouble() {
+                return Math.nextDown(1.0);
+            }
+```
+
+**`checkNextInRange`**
+
+```java
+    private static void checkNextInRange(String method,
+                                         long origin,
+                                         long bound,
+                                         LongSupplier nextMethod) {
+        // Do not change
+        // (statistical test assumes that 500 repeats are made with dof = 9).
+        final int numTests = 500;
+        final int numBins = 10; // dof = numBins - 1
+
+        // Set up bins.
+        final long[] binUpperBounds = new long[numBins];
+        // Range may be above a positive long: step = (bound - origin) / bins
+        final BigDecimal range = BigDecimal.valueOf(bound)
+                .subtract(BigDecimal.valueOf(origin));
+        final double step = range.divide(BigDecimal.TEN).doubleValue();
+        for (int k = 1; k < numBins; k++) {
+            binUpperBounds[k - 1] = origin + (long) (k * step);
+        }
+        // Final bound
+        binUpperBounds[numBins - 1] = bound;
+
+        // Create expected frequencies
+        final double[] expected = new double[numBins];
+        long previousUpperBound = origin;
+        final double scale = SAMPLE_SIZE_BD.divide(range, MathContext.DECIMAL128).doubleValue();
+        double sum = 0;
+        for (int k = 0; k < numBins; k++) {
+            final long binWidth = binUpperBounds[k] - previousUpperBound;
+            expected[k] = scale * binWidth;
+            sum += expected[k];
+            previousUpperBound = binUpperBounds[k];
+        }
+        Assertions.assertEquals(SAMPLE_SIZE, sum, SAMPLE_SIZE * RELATIVE_ERROR, "Invalid expected frequencies");
+
+        final int[] observed = new int[numBins];
+        // Chi-square critical value with 9 degrees of freedom
+        // and 1% significance level.
+        final double chi2CriticalValue = 21.665994333461924;
+
+        // For storing chi2 larger than the critical value.
+        final List<Double> failedStat = new ArrayList<>();
+        try {
+            final int lastDecileIndex = numBins - 1;
+            for (int i = 0; i < numTests; i++) {
+                Arrays.fill(observed, 0);
+                SAMPLE: for (int j = 0; j < SAMPLE_SIZE; j++) {
+                    final long value = nextMethod.getAsLong();
+                    if (value < origin) {
+                        Assertions.fail(String.format("Sample %d not within bound [%d, %d)",
+                                                      value, origin, bound));
+                    }
+
+                    for (int k = 0; k < lastDecileIndex; k++) {
+                        if (value < binUpperBounds[k]) {
+                            ++observed[k];
+                            continue SAMPLE;
+                        }
+                    }
+                    if (value >= bound) {
+                        Assertions.fail(String.format("Sample %d not within bound [%d, %d)",
+                                                      value, origin, bound));
+                    }
+                    ++observed[lastDecileIndex];
+                }
+
+                // Compute chi-square.
+                double chi2 = 0;
+                for (int k = 0; k < numBins; k++) {
+                    final double diff = observed[k] - expected[k];
+                    chi2 += diff * diff / expected[k];
+    // … 省略 29 行
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -963,6 +1204,54 @@ public enum AggregatorMergeStrategy
 ```java
   enum EncoderType {
     BINARY, JSON
+  }
+```
+
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`defaultRecordWithSchema`**
+
+```java
+  private <T> Record defaultRecordWithSchema(Schema schema, String key, T value) {
+    Record data = new GenericData.Record(schema);
+    data.put(key, value);
+    return data;
+  }
+```
+
+**`encodeGenericBlob`**
+
+```java
+  private byte[] encodeGenericBlob(GenericRecord data, EncoderType encoderType) throws IOException {
+    DatumWriter<GenericRecord> writer = new GenericDatumWriter<>(data.getSchema());
+    ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+    Encoder encoder = encoderType == EncoderType.BINARY ? EncoderFactory.get().binaryEncoder(outStream, null)
+        : EncoderFactory.get().jsonEncoder(data.getSchema(), outStream);
+    writer.write(data, encoder);
+    encoder.flush();
+    outStream.close();
+    return outStream.toByteArray();
+  }
+```
+
+**`decodeGenericBlob`**
+
+```java
+  private Record decodeGenericBlob(Schema expectedSchema, Schema schemaOfBlob, byte[] blob, EncoderType encoderType)
+      throws IOException {
+    if (blob == null) {
+      return null;
+    }
+    GenericData data = new GenericData();
+    data.setFastReaderEnabled(true);
+    GenericDatumReader<Record> reader = new GenericDatumReader<>(null, null, data);
+    reader.setExpected(expectedSchema);
+    reader.setSchema(schemaOfBlob);
+    Decoder decoder = encoderType == EncoderType.BINARY ? DecoderFactory.get().binaryDecoder(blob, null)
+        : DecoderFactory.get().jsonDecoder(schemaOfBlob, new ByteArrayInputStream(blob));
+    return reader.read(null, decoder);
   }
 ```
 
@@ -1026,13 +1315,28 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `buckets`
 
 ```java
-
   private static Stream<Arguments> buckets() {
     return Stream.of(
       Arguments.of("bucketname", Optional.empty(), "gs://bucketname"),
       Arguments.of("bucketname-with-slash", Optional.empty(), "gs://bucketname-with-slash/"),
       Arguments.of("bucketname", Optional.of("path/to/dir"), "gs://bucketname/path/to/dir"),
       Arguments.of("bucketname", Optional.of("trailing/slash"), "gs://bucketname/trailing/slash/"));
+  }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`makeBlobId`**
+
+```java
+  private BlobId makeBlobId(String noteId, String notePath, String bucketName, Optional<String> basePath) {
+    if (basePath.isPresent()) {
+      return BlobId.of(bucketName, basePath.get() + notePath + "_" + noteId +".zpln");
+    } else {
+      return BlobId.of(bucketName, notePath.substring(1) + "_" + noteId +".zpln");
+    }
   }
 ```
 
@@ -1130,7 +1434,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `clipTestArguments`
 
 ```java
-
     private Stream<Arguments> clipTestArguments() {
       RowRange fenceOpen = RowRange.open("a", "c");
       RowRange fenceClosedOpen = RowRange.closedOpen("a", "c");
@@ -1547,7 +1850,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
   public static Collection<Object[]> data()
   {
     Object[][] data = new Object[][]{
@@ -1680,7 +1982,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `params`
 
 ```java
-
   public static Collection<Object[]> params() {
     Object [][] data = new Object[][] {
       { BUFFER_DIR_ROOT, RELATIVE },
@@ -1699,7 +2000,6 @@ public enum AggregatorMergeStrategy
 **`initTestLocalDirAllocator`**
 
 ```java
-
   public void initTestLocalDirAllocator(String paramRoot, String paramPrefix) {
     this.root = paramRoot;
     this.prefix = paramPrefix;
@@ -1709,7 +2009,6 @@ public enum AggregatorMergeStrategy
 **`buildBufferDir`**
 
 ```java
-
   private String buildBufferDir(String dir, int i) {
     return dir + prefix + i;
   }
@@ -1718,7 +2017,6 @@ public enum AggregatorMergeStrategy
 **`createTempFile`**
 
 ```java
-
   private static File createTempFile() throws IOException {
     return createTempFile(-1);
   }
@@ -1727,7 +2025,10 @@ public enum AggregatorMergeStrategy
 **`rmBufferDirs`**
 
 ```java
-      rmBufferDirs();
+  private static void rmBufferDirs() throws IOException {
+    assertTrue(!localFs.exists(BUFFER_PATH_ROOT) ||
+        localFs.delete(BUFFER_PATH_ROOT, true));
+  }
 ```
 
 ### To classify
@@ -1868,6 +2169,33 @@ public enum AggregatorMergeStrategy
   }
 ```
 
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`fixture`**
+
+```java
+  protected SqlOperatorFixture fixture() {
+    return SqlOperatorFixtureImpl.DEFAULT;
+  }
+```
+
+**`forEach`**
+
+```java
+    static void forEach(Consumer<Numeric> consumer) {
+      consumer.accept(TINYINT);
+      consumer.accept(SMALLINT);
+      consumer.accept(INTEGER);
+      consumer.accept(BIGINT);
+      consumer.accept(DECIMAL5_2);
+      consumer.accept(REAL);
+      consumer.accept(FLOAT);
+      consumer.accept(DOUBLE);
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -1894,6 +2222,34 @@ public enum AggregatorMergeStrategy
         sendBodyAndHeader(endpointUri, "Camel CoAP", CoAPConstants.COAP_METHOD, "POST");
         MockEndpoint.assertIsSatisfied(context);
     }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`sendBodyAndHeader`**
+
+```java
+    protected void sendBodyAndHeader(String endpointUri, final Object body, String headerName, String headerValue) {
+        template.send(endpointUri, new Processor() {
+            public void process(Exchange exchange) {
+                Message in = exchange.getIn();
+                in.setBody(body);
+                in.setHeader(headerName, headerValue);
+            }
+        });
+    }
+```
+
+**`process`**
+
+```java
+            public void process(Exchange exchange) {
+                Message in = exchange.getIn();
+                in.setBody(body);
+                in.setHeader(headerName, headerValue);
+            }
 ```
 
 ### To classify
@@ -2469,7 +2825,6 @@ public enum TestSpec {
 **`getTestSchema`**
 
 ```java
-
   private Schema getTestSchema() {
     return new Schema(
         required(1, "id", Types.IntegerType.get(), "unique ID"),
@@ -2675,7 +3030,6 @@ public enum CompressionCodec {
 **`prepareInputStream`**
 
 ```java
-
   private static InputStream prepareInputStream(CompressionCodec codec) throws IOException {
     switch (codec) {
       case NONE:
@@ -2808,7 +3162,6 @@ public enum CompressionCodec {
 ### Parameter provider — 同文件内的 `mergeModeAndStageProvider`
 
 ```java
-
   private static Stream<Arguments> mergeModeAndStageProvider() {
     List<MergeStage> stages = Arrays.asList(MergeStage.values());
     return Arrays.stream(RecordMergeMode.values())
@@ -2824,6 +3177,205 @@ public enum CompressionCodec {
           PartialUpdateMode updateMode = (PartialUpdateMode) args.get()[1];
           return updateMode != PartialUpdateMode.IGNORE_DEFAULTS;
         });
+  }
+```
+
+### Test-side helpers called by this test (5)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`runDeltaMerge`**
+
+```java
+  private void runDeltaMerge(RecordMergeMode mergeMode, PartialUpdateMode updateMode) throws IOException {
+    BufferedRecordMerger<InternalRow> merger = createMerger(readerContext, mergeMode, Option.of(updateMode));
+    // Create records with all columns.
+    InternalRow oldRecord = createFullRecord("old_id", "Old Name", 25, "Old City", 1000L);
+    InternalRow newRecord = createFullRecord("new_id", "New Name", 0, IGNORE_MARKERS_VALUE, 0L);
+
+    // CASE 1: New record has lower ordering value.
+    BufferedRecord<InternalRow> oldBufferedRecord =
+        new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, oldRecord, 1, null);
+    BufferedRecord<InternalRow> newBufferedRecord =
+        new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE - 1, newRecord, 1, null);
+    Option<BufferedRecord<InternalRow>> deltaResult = merger.deltaMerge(newBufferedRecord, oldBufferedRecord);
+    if (mergeMode == COMMIT_TIME_ORDERING) {
+      assertTrue(deltaResult.isPresent());
+      if (updateMode == null) {
+        assertEquals(newRecord, deltaResult.get().getRecord());
+      } else if (updateMode == PartialUpdateMode.IGNORE_DEFAULTS) {
+        assertEquals(25, deltaResult.get().getRecord().getInt(2));
+        assertEquals(1000L, deltaResult.get().getRecord().getLong(4));
+      } else if (updateMode == PartialUpdateMode.FILL_UNAVAILABLE) {
+        assertEquals("Old City", deltaResult.get().getRecord().getString(3));
+      }
+    } else {
+      if (updateMode == null) {
+        assertTrue(deltaResult.isEmpty());
+      } else if (updateMode == PartialUpdateMode.IGNORE_DEFAULTS) {
+        assertTrue(deltaResult.isPresent());
+        assertEquals(oldRecord, deltaResult.get().getRecord());
+      }
+    }
+
+    // CASE 2: New record has higher ordering value.
+    oldBufferedRecord = new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, oldRecord, 1, null);
+    newBufferedRecord = new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE + 1, newRecord, 1, null);
+    deltaResult = merger.deltaMerge(newBufferedRecord, oldBufferedRecord);
+    assertTrue(deltaResult.isPresent());
+    if (updateMode == null) {
+      assertEquals(newRecord, deltaResult.get().getRecord());
+    } else if (updateMode == PartialUpdateMode.IGNORE_DEFAULTS) {
+      assertEquals(25, deltaResult.get().getRecord().getInt(2));
+      assertEquals(1000L, deltaResult.get().getRecord().getLong(4));
+    } else if (updateMode == PartialUpdateMode.FILL_UNAVAILABLE) {
+      assertEquals("Old City", deltaResult.get().getRecord().getString(3));
+    }
+
+    // CASE 3: New record and old record have the same ordering value.
+    oldBufferedRecord = new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, oldRecord, 1, null);
+    newBufferedRecord = new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, newRecord, 1, null);
+    deltaResult = merger.deltaMerge(newBufferedRecord, oldBufferedRecord);
+    assertTrue(deltaResult.isPresent());
+    if (updateMode == null) {
+      assertEquals(newRecord, deltaResult.get().getRecord());
+    } else if (updateMode == PartialUpdateMode.IGNORE_DEFAULTS) {
+      assertEquals(25, deltaResult.get().getRecord().getInt(2));
+      assertEquals(1000L, deltaResult.get().getRecord().getLong(4));
+    } else if (updateMode == PartialUpdateMode.FILL_UNAVAILABLE) {
+      assertEquals("Old City", deltaResult.get().getRecord().getString(3));
+    }
+  }
+```
+
+**`runFinalMerge`**
+
+```java
+  private void runFinalMerge(RecordMergeMode mergeMode, PartialUpdateMode updateMode) throws IOException {
+    BufferedRecordMerger<InternalRow> merger = createMerger(readerContext, mergeMode, Option.ofNullable(updateMode));
+    InternalRow oldRecord = createFullRecord(
+        "older_id", "Older Name", 20, "Older City", 500L);
+    InternalRow newRecord = createFullRecord(
+        "new_id", "New Name", 0, IGNORE_MARKERS_VALUE, 0L);
+
+    // New record has lower ordering value.
+    BufferedRecord<InternalRow> olderBufferedRecord =
+        new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, oldRecord, 1, null);
+    BufferedRecord<InternalRow> newerBufferedRecord =
+        new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE - 1, newRecord, 1, null);
+    BufferedRecord<InternalRow> finalResult = merger.finalMerge(olderBufferedRecord, newerBufferedRecord);
+    assertFalse(finalResult.isDelete());
+    if (mergeMode == COMMIT_TIME_ORDERING) {
+      if (updateMode == null) {
+        assertEquals(newRecord, finalResult.getRecord());
+      } else if (updateMode == PartialUpdateMode.IGNORE_DEFAULTS) {
+        assertEquals(20, finalResult.getRecord().getInt(2));
+        assertEquals(500L, finalResult.getRecord().getLong(4));
+      } else if (updateMode == PartialUpdateMode.FILL_UNAVAILABLE) {
+        assertEquals("Older City", finalResult.getRecord().getString(3));
+      }
+    } else {
+      assertEquals(oldRecord, finalResult.getRecord());
+    }
+
+    // New record has higher ordering value.
+    olderBufferedRecord = new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, oldRecord, 1, null);
+    newerBufferedRecord = new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE + 1, newRecord, 1, null);
+    finalResult = merger.finalMerge(olderBufferedRecord, newerBufferedRecord);
+    assertFalse(finalResult.isDelete());
+    if (updateMode == null) {
+      assertEquals(newRecord, finalResult.getRecord());
+    } else if (updateMode == PartialUpdateMode.IGNORE_DEFAULTS) {
+      assertEquals(20, finalResult.getRecord().getInt(2));
+      assertEquals(500, finalResult.getRecord().getLong(4));
+    } else if (updateMode == PartialUpdateMode.FILL_UNAVAILABLE) {
+      assertEquals("Older City", finalResult.getRecord().getString(3));
+    }
+
+    // New record has equal ordering value.
+    olderBufferedRecord = new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, oldRecord, 1, null);
+    newerBufferedRecord = new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, newRecord, 1, null);
+    finalResult = merger.finalMerge(olderBufferedRecord, newerBufferedRecord);
+    assertFalse(finalResult.isDelete());
+    if (updateMode == null) {
+      assertEquals(newRecord, finalResult.getRecord());
+    } else if (updateMode == PartialUpdateMode.IGNORE_DEFAULTS) {
+      assertEquals(20, finalResult.getRecord().getInt(2));
+      assertEquals(500, finalResult.getRecord().getLong(4));
+    } else if (updateMode == PartialUpdateMode.FILL_UNAVAILABLE) {
+      assertEquals("Older City", finalResult.getRecord().getString(3));
+    }
+  }
+```
+
+**`runDeltaDeleteMerge`**
+
+```java
+  private void runDeltaDeleteMerge(RecordMergeMode mergeMode, PartialUpdateMode updateMode) throws IOException {
+    BufferedRecordMerger<InternalRow> merger = createMerger(readerContext, mergeMode, Option.ofNullable(updateMode));
+    // Create records with all columns.
+    InternalRow oldRecord = createFullRecord("old_id", "Old Name", 25, "Old City", 1000L);
+    InternalRow newRecord = createFullRecord("new_id", "New Name", 0, IGNORE_MARKERS_VALUE, 0L);
+
+    // CASE 1: New record has lower ordering value.
+    BufferedRecord<InternalRow> oldBufferedRecord =
+        new BufferedRecord<>(RECORD_KEY, ORDERING_VALUE, oldRecord, 1, null);
+    DeleteRecord deleteRecord = DeleteRecord.create(RECORD_KEY, "anyPath", ORDERING_VALUE - 1);
+    Option<DeleteRecord> deltaResult = merger.deltaMerge(deleteRecord, oldBufferedRecord);
+    if (mergeMode == COMMIT_TIME_ORDERING) {
+      assertTrue(deltaResult.isPresent());
+      assertEquals(deleteRecord, deltaResult.get());
+    } else {
+      assertTrue(deltaResult.isEmpty());
+    }
+
+    // CASE 2: New record has higher ordering value.
+    deleteRecord = DeleteRecord.create(RECORD_KEY, "anyPath", ORDERING_VALUE + 1);
+    deltaResult = merger.deltaMerge(deleteRecord, oldBufferedRecord);
+    assertTrue(deltaResult.isPresent());
+    assertEquals(deleteRecord, deltaResult.get());
+
+    // CASE 3: New record and old record have the same ordering value.
+    deleteRecord = DeleteRecord.create(RECORD_KEY, "anyPath", ORDERING_VALUE);
+    deltaResult = merger.deltaMerge(deleteRecord, oldBufferedRecord);
+    assertTrue(deltaResult.isPresent());
+    assertEquals(deleteRecord, deltaResult.get());
+  }
+```
+
+**`createMerger`**
+
+```java
+  private BufferedRecordMerger<InternalRow> createMerger(HoodieReaderContext<InternalRow> readerContext,
+                                                         RecordMergeMode mergeMode,
+                                                         Option<PartialUpdateMode> partialUpdateModeOpt) {
+    return BufferedRecordMergerFactory.create(
+        readerContext,
+        mergeMode,
+        false,
+        mergeMode == EVENT_TIME_ORDERING
+            ? Option.of(new DefaultSparkRecordMerger())
+            : Option.of(new OverwriteWithLatestSparkRecordMerger()),
+        Option.empty(), // payloadClass
+        READER_SCHEMA, // readerSchema
+        props, // props
+        partialUpdateModeOpt
+    );
+  }
+```
+
+**`createFullRecord`**
+
+```java
+  private static InternalRow createFullRecord(
+      String id, String name, int age, String city, long timestamp) {
+    return new GenericInternalRow(new Object[]{
+        UTF8String.fromString(id),
+        UTF8String.fromString(name),
+        age,
+        UTF8String.fromString(city),
+        timestamp
+    });
   }
 ```
 
@@ -2853,7 +3405,6 @@ public enum CompressionCodec {
 ### Parameter provider — 同文件内的 `testCases`
 
 ```java
-
     private static Stream<TestCase> testCases() {
         final String[][] testData = { { "ftp.ibiblio.org", "unix", "vms", "HA!", "javaio.jar", "pub/languages/java/javafaq", "/pub/languages/java/javafaq", },
                 { "apache.cs.utah.edu", "unix", "vms", "HA!", "HEADER.html", "apache.org", "/apache.org", },
@@ -2880,7 +3431,6 @@ public enum CompressionCodec {
 **`createFTPClient`**
 
 ```java
-
     private FTPClient createFTPClient(final String hostName) {
         try {
             final FTPClient ftpClient = new FTPClient();
@@ -2902,7 +3452,6 @@ public enum CompressionCodec {
 **`findByName`**
 
 ```java
-
     private boolean findByName(final List<?> fileList, final String string) {
         boolean found = false;
         final Iterator<?> iter = fileList.iterator();
@@ -2962,7 +3511,6 @@ public enum CompressionCodec {
 ### Parameter provider — 同文件内的 `provideParameters`
 
 ```java
-
   private static Stream<TestParameters> provideParameters() throws Exception {
     return Stream.<TestParameters>builder()
         .add(new TestParameters(ServerImplementationType.SYNC_SERVER))
@@ -2971,14 +3519,13 @@ public enum CompressionCodec {
   }
 ```
 
-### Test-side helpers called by this test (4)
+### Test-side helpers called by this test (5)
 
 > Parameter-dependent branching may live here rather than in the test body — check these before deciding.
 
 **`start`**
 
 ```java
-
     public AutoCloseable start() throws Exception {
       serverThread.start();
       futureServerStarted.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
@@ -2993,7 +3540,6 @@ public enum CompressionCodec {
 **`checkAsyncClient`**
 
 ```java
-
     private <T> void checkAsyncClient(
         String desc,
         String msg,
@@ -3063,7 +3609,14 @@ public enum CompressionCodec {
               throw x.getCause();
             }
             assertEquals(expectedResult, result);
-    // … 省略 6 行
+          }
+    // … 省略 5 行
+```
+
+**`apply`**
+
+```java
+    R apply(T t, U u, V v) throws Exception;
 ```
 
 **`onError`**
@@ -3117,7 +3670,6 @@ public enum CompressionCodec {
 ### Parameter provider — 同文件内的 `provideParameters`
 
 ```java
-
   private static Stream<TestParameters> provideParameters() throws Exception {
     return Stream.<TestParameters>builder()
         .add(new TestParameters(ServerImplementationType.SYNC_SERVER))
@@ -3126,14 +3678,13 @@ public enum CompressionCodec {
   }
 ```
 
-### Test-side helpers called by this test (4)
+### Test-side helpers called by this test (5)
 
 > Parameter-dependent branching may live here rather than in the test body — check these before deciding.
 
 **`start`**
 
 ```java
-
     public AutoCloseable start() throws Exception {
       serverThread.start();
       futureServerStarted.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
@@ -3148,7 +3699,6 @@ public enum CompressionCodec {
 **`checkAsyncClient`**
 
 ```java
-
     private <T> void checkAsyncClient(
         String desc,
         String msg,
@@ -3218,7 +3768,14 @@ public enum CompressionCodec {
               throw x.getCause();
             }
             assertEquals(expectedResult, result);
-    // … 省略 6 行
+          }
+    // … 省略 5 行
+```
+
+**`apply`**
+
+```java
+    R apply(T t, U u, V v) throws Exception;
 ```
 
 **`onError`**
@@ -3289,7 +3846,6 @@ public enum CompressionCodec {
 ### Parameter provider — 同文件内的 `provideTestData`
 
 ```java
-
   private static List<Arguments> provideTestData() {
     List<Arguments> listA =
         ContainerTestVersionInfo.getLayoutList().stream().map(
@@ -3313,7 +3869,6 @@ public enum CompressionCodec {
 **`initTest`**
 
 ```java
-
   private void initTest(ContainerTestVersionInfo versionInfo,
       String keySeparator) throws Exception {
     this.layout = versionInfo.getLayout();
@@ -3330,13 +3885,32 @@ public enum CompressionCodec {
 **`createContainerWithBlocks`**
 
 ```java
-    createContainerWithBlocks(CONTAINER_ID, 0, 5);
+  private List<Long> createContainerWithBlocks(long containerId,
+            int unprefixedBlocks) throws Exception {
+    return createContainerWithBlocks(containerId, unprefixedBlocks, 0).get("");
+  }
 ```
 
 **`setup`**
 
 ```java
-    setup();
+  public void setup() throws Exception {
+    conf.set(HDDS_DATANODE_DIR_KEY, testRoot.getAbsolutePath());
+    conf.set(OzoneConfigKeys.OZONE_METADATA_DIRS, testRoot.getAbsolutePath());
+    volumeSet = new MutableVolumeSet(datanodeID, clusterID, conf, null,
+        StorageVolume.VolumeType.DATA_VOLUME, null);
+    createDbInstancesForTestIfNeeded(volumeSet, clusterID, clusterID, conf);
+
+    containerData = new KeyValueContainerData(105L,
+        layout,
+        (long) StorageUnit.GB.toBytes(1), UUID.randomUUID().toString(),
+        UUID.randomUUID().toString());
+    // Init the container.
+    KeyValueContainer container = new KeyValueContainer(containerData, conf);
+    container.create(volumeSet, new RoundRobinVolumeChoosingPolicy(),
+        clusterID);
+    db = BlockUtils.getDB(containerData, conf);
+  }
 ```
 
 ### To classify
@@ -3404,14 +3978,15 @@ public enum CompressionCodec {
 **`getFilePath`**
 
 ```java
-        instantTime, getFilePath(), storage, HoodieStorageConfig.newBuilder().fromProperties(props).build(), avroSchema,
-        mockTaskContextSupplier, HoodieRecord.HoodieRecordType.AVRO);
+@Override
+  protected StoragePath getFilePath() {
+    return new StoragePath(tempDir.toString() + "/f1_1-0-1_000.hfile");
+  }
 ```
 
 **`verifyHFileReader`**
 
 ```java
-
   protected void verifyHFileReader(byte[] content,
                                    String hfileName,
                                    boolean mayUseDefaultComparator,
@@ -3427,7 +4002,6 @@ public enum CompressionCodec {
 **`createHFileReader`**
 
 ```java
-
   protected HoodieAvroHFileReaderImplBase createHFileReader(HoodieStorage storage,
                                                             byte[] content,
                                                             boolean useBloomFilter) throws IOException {
@@ -3469,6 +4043,20 @@ public enum CompressionCodec {
     }
 ```
 
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`testDecodeEncode`**
+
+```java
+    private void testDecodeEncode(final String encodedText) {
+        final String decodedText = StringUtils.newStringUsAscii(Base64.decodeBase64(encodedText));
+        final String encodedText2 = Base64.encodeBase64String(StringUtils.getBytesUtf8(decodedText));
+        assertEquals(encodedText, encodedText2);
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -3494,6 +4082,31 @@ public enum CompressionCodec {
 ```java
     private static Iterable<JumpableUniformRandomProvider> getJumpableProviders() {
         return ProvidersList.listJumpable();
+    }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`assertJumpReturnsACopy`**
+
+```java
+    private static void assertJumpReturnsACopy(TestJumpFunction jumpFunction,
+                                               JumpableUniformRandomProvider generator) {
+        final UniformRandomProvider copy = jumpFunction.jump();
+        Assertions.assertNotSame(generator, copy, "The copy instance should be a different object");
+        Assertions.assertEquals(generator.getClass(), copy.getClass(), "The copy instance should be the same class");
+    }
+```
+
+**`getLongJumpFunction`**
+
+```java
+    private static TestJumpFunction getLongJumpFunction(JumpableUniformRandomProvider generator) {
+        Assumptions.assumeTrue(generator instanceof LongJumpableUniformRandomProvider, "No long jump function");
+        final LongJumpableUniformRandomProvider rng2 = (LongJumpableUniformRandomProvider) generator;
+        return rng2::jump;
     }
 ```
 
@@ -3671,7 +4284,6 @@ public enum ImageFormats implements ImageFormat {
 ### Parameter provider — 同文件内的 `provideParameters`
 
 ```java
-
   private static Stream<TestParameters> provideParameters() throws Exception {
     return Stream.<TestParameters>builder()
         .add(new TestParameters(ServerImplementationType.SYNC_SERVER))
@@ -3680,14 +4292,13 @@ public enum ImageFormats implements ImageFormat {
   }
 ```
 
-### Test-side helpers called by this test (2)
+### Test-side helpers called by this test (3)
 
 > Parameter-dependent branching may live here rather than in the test body — check these before deciding.
 
 **`start`**
 
 ```java
-
     public AutoCloseable start() throws Exception {
       serverThread.start();
       futureServerStarted.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
@@ -3702,7 +4313,6 @@ public enum ImageFormats implements ImageFormat {
 **`checkSyncClient`**
 
 ```java
-
     private void checkSyncClient(
         String desc,
         String msg,
@@ -3745,6 +4355,12 @@ public enum ImageFormats implements ImageFormat {
         }
       }
     }
+```
+
+**`apply`**
+
+```java
+    R apply(T t, U u, V v) throws Exception;
 ```
 
 ### To classify
@@ -3800,7 +4416,6 @@ public enum ImageFormats implements ImageFormat {
 ### Parameter provider — 同文件内的 `parsers`
 
 ```java
-
     protected static Stream<CommandLineParser> parsers() {
         return Stream.of(new DefaultParser(), new PosixParser());
     }
@@ -4018,6 +4633,80 @@ public enum ImageFormats implements ImageFormat {
     }
 ```
 
+### Test-side helpers called by this test (6)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`assertFunction`**
+
+```java
+    private static void assertFunction(BiTestCase tc) {
+        final TestUtils.ErrorStatistics stats = new TestUtils.ErrorStatistics();
+        try (DataReader in = new DataReader(tc.getFilename())) {
+            while (in.next()) {
+                try {
+                    final double x = in.getDouble(0);
+                    final double y = in.getDouble(1);
+                    final BigDecimal expected = in.getBigDecimal(tc.getExpectedField());
+                    final double actual = tc.getFunction().applyAsDouble(x, y);
+                    TestUtils.assertEquals(expected, actual, tc.getTolerance(), stats::add,
+                        () -> tc + " x=" + x + ", y=" + y);
+                } catch (final NumberFormatException ex) {
+                    Assertions.fail("Failed to load data: " + Arrays.toString(in.getFields()), ex);
+                }
+            }
+        } catch (final IOException ex) {
+            Assertions.fail("Failed to load data: " + tc.getFilename(), ex);
+        }
+
+        assertRms(tc, stats);
+    }
+```
+
+**`getFilename`**
+
+```java
+        String getFilename() {
+            return filename;
+        }
+```
+
+**`getExpectedField`**
+
+```java
+        int getExpectedField() {
+            return expected;
+        }
+```
+
+**`getFunction`**
+
+```java
+        DoubleBinaryOperator getFunction() {
+            return fun;
+        }
+```
+
+**`getTolerance`**
+
+```java
+@Override
+        public double getTolerance() {
+            return maxUlp;
+        }
+```
+
+**`assertRms`**
+
+```java
+    private static void assertRms(TestError te, TestUtils.ErrorStatistics stats) {
+        final double rms = stats.getRMS();
+        //debugRms(te.toString(), stats.getMaxAbs(), rms, stats.getMean(), stats.size());
+        Assertions.assertTrue(rms <= te.getRmsTolerance(),
+            () -> String.format("%s RMS %s < %s", te, rms, te.getRmsTolerance()));
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
@@ -4070,6 +4759,40 @@ public enum OutputStrategy implements DescribedValue {
 }
 ```
 
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`testSingleInvalidRecord`**
+
+```java
+    private void testSingleInvalidRecord(final String topicPrefix, final OutputStrategy outputStrategy, final String... recordTexts) throws ExecutionException, InterruptedException {
+        final String topicName = topicPrefix + outputStrategy.getValue();
+        runner.setProperty(ConsumeKafka.TOPICS, topicName);
+        runner.setProperty(ConsumeKafka.GROUP_ID, topicName);
+        runner.setProperty(ConsumeKafka.PROCESSING_STRATEGY, ProcessingStrategy.RECORD.getValue());
+        runner.setProperty(ConsumeKafka.OUTPUT_STRATEGY, outputStrategy.getValue());
+        runner.setProperty(ConsumeKafka.AUTO_OFFSET_RESET, AutoOffsetReset.EARLIEST.getValue());
+
+        for (final String text : recordTexts) {
+            produceOne(topicName, 0, null, text, List.of());
+        }
+
+        runner.run(1, false, true);
+
+        while (runner.getFlowFilesForRelationship(ConsumeKafka.SUCCESS).isEmpty()) {
+            Thread.sleep(10L);
+            runner.run(1, false, false);
+        }
+
+        runner.assertTransferCount(ConsumeKafka.SUCCESS, 1);
+        runner.assertTransferCount(ConsumeKafka.PARSE_FAILURE, 1);
+
+        assertEquals(String.valueOf(recordTexts.length - 1), runner.getFlowFilesForRelationship(ConsumeKafka.SUCCESS).getFirst().getAttribute("record.count"));
+        runner.getFlowFilesForRelationship(ConsumeKafka.PARSE_FAILURE).getFirst().assertContentEquals(INVALID_RECORD_TEXT);
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
@@ -4098,7 +4821,6 @@ public enum OutputStrategy implements DescribedValue {
 ### Parameter provider — 同文件内的 `inputData`
 
 ```java
-
     public static Stream<Arguments> inputData() {
         // @formatter:off
         return Stream.of(Arguments.of(""),
@@ -4114,6 +4836,27 @@ public enum OutputStrategy implements DescribedValue {
                 Arguments.of(StringUtils.repeat("A", 8193)),
                 Arguments.of(StringUtils.repeat("A", 8192 * 4)));
         // @formatter:on
+    }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`writeUnbuffered`**
+
+```java
+    private void writeUnbuffered(final QueueOutputStream outputStream, final String inputData) throws IOException {
+        final byte[] bytes = inputData.getBytes(StandardCharsets.UTF_8);
+        outputStream.write(bytes, 0, bytes.length);
+    }
+```
+
+**`readUnbuffered`**
+
+```java
+    private String readUnbuffered(final InputStream inputStream) throws IOException {
+        return readUnbuffered(inputStream, Integer.MAX_VALUE);
     }
 ```
 
@@ -4249,6 +4992,77 @@ public enum OutputStrategy implements DescribedValue {
     }
 ```
 
+### Test-side helpers called by this test (6)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`assertFunction`**
+
+```java
+    private static void assertFunction(TestCase tc) {
+        final TestUtils.ErrorStatistics stats = new TestUtils.ErrorStatistics();
+        try (DataReader in = new DataReader(tc.getFilename())) {
+            while (in.next()) {
+                try {
+                    final double x = in.getDouble(0);
+                    final BigDecimal expected = in.getBigDecimal(tc.getExpectedField());
+                    final double actual = tc.getFunction().applyAsDouble(x);
+                    TestUtils.assertEquals(expected, actual, tc.getTolerance(), stats::add,
+                        () -> tc + " x=" + x);
+                } catch (final NumberFormatException ex) {
+                    Assertions.fail("Failed to load data: " + Arrays.toString(in.getFields()), ex);
+                }
+            }
+        } catch (final IOException ex) {
+            Assertions.fail("Failed to load data: " + tc.getFilename(), ex);
+        }
+
+        assertRms(tc, stats);
+    }
+```
+
+**`getFilename`**
+
+```java
+        String getFilename() {
+            return filename;
+        }
+```
+
+**`getExpectedField`**
+
+```java
+        int getExpectedField() {
+            return expected;
+        }
+```
+
+**`getFunction`**
+
+```java
+        DoubleUnaryOperator getFunction() {
+            return fun;
+        }
+```
+
+**`assertEquals`**
+
+```java
+    private static void assertEquals(DoubleBinaryOperator fun, double x, double y, double expected) {
+        final double actual = fun.applyAsDouble(x, y);
+        Assertions.assertEquals(expected, actual, () -> x + ", " + y);
+    }
+```
+
+**`getTolerance`**
+
+```java
+@Override
+                public double getTolerance() {
+                    return tolerance;
+                }
+```
+
 ### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
@@ -4279,6 +5093,35 @@ public enum OutputStrategy implements DescribedValue {
     void testClass(final String className) throws Exception {
         testJavaClass(SyntheticRepository.getInstance().loadClass(className));
     }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`testJavaClass`**
+
+```java
+    private static void testJavaClass(final JavaClass javaClass) {
+        final ConstantPool constantPool = javaClass.getConstantPool();
+        final ToStringVisitor visitor = new ToStringVisitor(constantPool);
+        final DescendingVisitor descendingVisitor = new DescendingVisitor(javaClass, visitor);
+        try {
+            javaClass.accept(descendingVisitor);
+            assertNotNull(visitor.toString());
+        } catch (Exception | Error e) {
+            fail(visitor.toString(), e);
+        }
+    }
+```
+
+**`toString`**
+
+```java
+@Override
+        public String toString() {
+            return "ToStringVisitor [count=" + count + ", stringBuilder=" + stringBuilder + ", pool=" + pool + "]";
+        }
 ```
 
 ### To classify
@@ -4499,60 +5342,21 @@ public enum StatisticsType {
 **`createCoordinator`**
 
 ```java
-        createCoordinator(StatisticsType.Sketch)) {
-      dataStatisticsCoordinator.start();
-      tasksReady(dataStatisticsCoordinator);
-
-      // receive request before global statistics is ready
-      dataStatisticsCoordinator.handleEventFromOperator(0, 0, new RequestGlobalStatisticsEvent());
-      assertThat(receivingTasks.getSentEventsForSubtask(0)).isEmpty();
-      assertThat(receivingTasks.getSentEventsForSubtask(1)).isEmpty();
-
-      StatisticsEvent checkpoint1Subtask0DataStatisticEvent =
-          Fixtures.createStatisticsEvent(
-              StatisticsType.Sketch, Fixtures.TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("a"));
-      StatisticsEvent checkpoint1Subtask1DataStatisticEvent =
-          Fixtures.createStatisticsEvent(
-              StatisticsType.Sketch, Fixtures.TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("b"));
-      // Handle events from operators for checkpoint 1
-      dataStatisticsCoordinator.handleEventFromOperator(
-          0, 0, checkpoint1Subtask0DataStatisticEvent);
-      dataStatisticsCoordinator.handleEventFromOperator(
-          1, 0, checkpoint1Subtask1DataStatisticEvent);
-
-      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
-      Awaitility.await("wait for statistics event")
-          .pollInterval(Duration.ofMillis(10))
-          .atMost(Duration.ofSeconds(10))
-          .until(() -> receivingTasks.getSentEventsForSubtask(0).size() == 1);
-      assertThat(receivingTasks.getSentEventsForSubtask(0).get(0))
-          .isInstanceOf(StatisticsEvent.class);
-
-      Awaitility.await("wait for statistics event")
-          .pollInterval(Duration.ofMillis(10))
-          .atMost(Duration.ofSeconds(10))
-          .until(() -> receivingTasks.getSentEventsForSubtask(1).size() == 1);
-      assertThat(receivingTasks.getSentEventsForSubtask(1).get(0))
-          .isInstanceOf(StatisticsEvent.class);
-
-      dataStatisticsCoordinator.handleEventFromOperator(1, 0, new RequestGlobalStatisticsEvent());
-
-      // coordinator should send a response to subtask 1
-      Awaitility.await("wait for statistics event")
-          .pollInterval(Duration.ofMillis(10))
-          .atMost(Duration.ofSeconds(10))
-          .until(() -> receivingTasks.getSentEventsForSubtask(1).size() == 2);
-      assertThat(receivingTasks.getSentEventsForSubtask(1).get(0))
-          .isInstanceOf(StatisticsEvent.class);
-      assertThat(receivingTasks.getSentEventsForSubtask(1).get(1))
-          .isInstanceOf(StatisticsEvent.class);
-    }
+  private static DataStatisticsCoordinator createCoordinator(StatisticsType type) {
+    return new DataStatisticsCoordinator(
+        OPERATOR_NAME,
+        new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, NUM_SUBTASKS),
+        Fixtures.SCHEMA,
+        Fixtures.SORT_ORDER,
+        NUM_SUBTASKS,
+        type,
+        0.0d);
+  }
 ```
 
 **`tasksReady`**
 
 ```java
-
   private void tasksReady(DataStatisticsCoordinator coordinator) {
     setAllTasksReady(NUM_SUBTASKS, coordinator, receivingTasks);
   }
@@ -4561,14 +5365,37 @@ public enum StatisticsType {
 **`waitForCoordinatorToProcessActions`**
 
 ```java
+  static void waitForCoordinatorToProcessActions(DataStatisticsCoordinator coordinator) {
+    CompletableFuture<Void> future = new CompletableFuture<>();
+    coordinator.callInCoordinatorThread(
+        () -> {
+          future.complete(null);
+          return null;
+        },
+        "Coordinator fails to process action");
 
-      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+    try {
+      future.get();
+    } catch (InterruptedException e) {
+      throw new AssertionError("test interrupted");
+    } catch (ExecutionException e) {
+      ExceptionUtils.rethrow(ExceptionUtils.stripExecutionException(e));
+    }
+  }
 ```
 
 **`setAllTasksReady`**
 
 ```java
-    setAllTasksReady(NUM_SUBTASKS, coordinator, receivingTasks);
+  static void setAllTasksReady(
+      int subtasks,
+      DataStatisticsCoordinator dataStatisticsCoordinator,
+      EventReceivingTasks receivingTasks) {
+    for (int i = 0; i < subtasks; i++) {
+      dataStatisticsCoordinator.executionAttemptReady(
+          i, 0, receivingTasks.createGatewayForSubtask(i, 0));
+    }
+  }
 ```
 
 ### To classify
@@ -4671,6 +5498,21 @@ public enum StatisticsType {
                         + "\"type_timestamp_millis\": \"2014-03-01T12:12:12.321Z\", "
                         + "\"type_timestamp_micros\": \"1970-01-01T00:00:00.123456Z\", "
                         + "\"type_decimal_bytes\": \"\\u0007Ð\", \"type_decimal_fixed\": [7, -48]}\n";
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getExecutionEnvironment`**
+
+```java
+    private static StreamExecutionEnvironment getExecutionEnvironment(
+            boolean useMiniCluster, MiniCluster miniCluster) {
+        return useMiniCluster
+                ? new TestStreamEnvironment(miniCluster, PARALLELISM)
+                : StreamExecutionEnvironment.getExecutionEnvironment();
     }
 ```
 

@@ -153,7 +153,6 @@ Record your answers in `packet_R3.csv`, one row per item, matched by `item_id`. 
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Stream<Arguments> data() throws Exception {
         // Function "Text" uses custom-formats which are locale specific
         // can't set the locale on a per-testrun execution, as some settings have been
@@ -174,6 +173,26 @@ Record your answers in `packet_R3.csv`, one row per item, matched by `item_id`. 
         // processFunctionGroup(data, SS.START_FUNCTIONS_ROW_INDEX, "Text");
 
         return data.stream();
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`ignoredFormulaTestCase`**
+
+```java
+    private static void ignoredFormulaTestCase(String cellFormula) {
+        // full row ranges are not parsed properly yet.
+        // These cases currently work in svn trunk because of another bug which causes the
+        // formula to get rendered as COLUMN($A$1:$IV$2) or ROW($A$2:$IV$3)
+        assumeFalse("COLUMN(1:2)".equals(cellFormula));
+        assumeFalse("ROW(2:3)".equals(cellFormula));
+
+        // currently throws NPE because unknown function "currentcell" causes name lookup
+        // Name lookup requires some equivalent object of the Workbook within xSSFWorkbook.
+        assumeFalse("ISREF(currentcell())".equals(cellFormula));
     }
 ```
 
@@ -351,7 +370,6 @@ public enum TestSpec {
 **`individuals`**
 
 ```java
-
     private static Set<String> individuals(OntModel m, String name, boolean direct) {
         return m.getOntClass(NS + name).individuals(direct).map(Resource::getLocalName).collect(Collectors.toSet());
     }
@@ -427,6 +445,48 @@ public enum ElasticsearchClientType {
     }
 ```
 
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createExpressionEvaluator`**
+
+```java
+    private ExpressionEvaluator createExpressionEvaluator(
+            MavenProject project, PluginDescriptor pluginDescriptor, Properties executionProperties) throws Exception {
+        ArtifactRepository repo = getLocalRepository();
+
+        MutablePlexusContainer container = (MutablePlexusContainer) getContainer();
+        MavenSession session = createSession(container, repo, executionProperties);
+        session.setCurrentProject(project);
+        session.getRequest().setRootDirectory(rootDirectory);
+
+        MojoDescriptor mojo = new MojoDescriptor();
+        mojo.setPluginDescriptor(pluginDescriptor);
+        mojo.setGoal("goal");
+
+        MojoExecution mojoExecution = new MojoExecution(mojo);
+
+        return new PluginParameterExpressionEvaluator(session, mojoExecution);
+    }
+```
+
+**`createSession`**
+
+```java
+@SuppressWarnings("deprecation")
+    private static MavenSession createSession(PlexusContainer container, ArtifactRepository repo, Properties properties)
+            throws CycleDetectedException, DuplicateProjectException {
+        MavenExecutionRequest request = new DefaultMavenExecutionRequest()
+                .setSystemProperties(properties)
+                .setGoals(Collections.emptyList())
+                .setBaseDirectory(new File(""))
+                .setLocalRepository(repo);
+
+        return new MavenSession(container, request, new DefaultMavenExecutionResult(), Collections.emptyList());
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -454,6 +514,28 @@ public enum ElasticsearchClientType {
         }
         final double p = new ChiSquareTest().chiSquareTest(counts);
         Assertions.assertFalse(p < 1e-3, () -> "p-value too small: " + p);
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`natural`**
+
+```java
+    private static int[] natural(int from, int to, int length) {
+        final int[] array = new int[length];
+        for (int i = 0; i < from; i++) {
+            array[i] = i - from;
+        }
+        for (int i = from; i < to; i++) {
+            array[i] = i - from;
+        }
+        for (int i = to; i < length; i++) {
+            array[i] = i - from;
+        }
+        return array;
     }
 ```
 
@@ -491,12 +573,31 @@ public enum ElasticsearchClientType {
 ### Parameter provider — `TestFixtures#getOutputArchiveNames`（commons-compress/src/test/java/org/apache/commons/compress/changes/TestFixtures.java）
 
 ```java
-
     static Set<String> getOutputArchiveNames() {
         final Set<String> outputStreamArchiveNames = ArchiveStreamFactory.DEFAULT.getOutputStreamArchiveNames();
         outputStreamArchiveNames.remove(ArchiveStreamFactory.AR); // TODO BUG?
         outputStreamArchiveNames.remove(ArchiveStreamFactory.SEVEN_Z); // TODO Does not support streaming.
         return outputStreamArchiveNames;
+    }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createChangeSet`**
+
+```java
+    private <A extends ArchiveEntry> ChangeSet<A> createChangeSet() {
+        return new ChangeSet<>();
+    }
+```
+
+**`archiveListDelete`**
+
+```java
+    private void archiveListDelete(final String prefix) {
+        archiveList.removeIf(entry -> entry.equals(prefix));
     }
 ```
 
@@ -600,7 +701,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Object[][] data() {
         return new Object[][] {
             {"log4j.simple", Collections.singletonList("simple")},
@@ -692,8 +792,20 @@ public enum AggregatorMergeStrategy
 **`mergeWithStrategy`**
 
 ```java
-        mergeWithStrategy(analysis1NullProjection, analysis2NullProjection, aggregatorMergeStrategy).getProjections()
-    );
+  private static SegmentAnalysis mergeWithStrategy(
+      SegmentAnalysis analysis1,
+      SegmentAnalysis analysis2,
+      AggregatorMergeStrategy strategy
+  )
+  {
+    return SegmentMetadataQueryQueryToolChest.finalizeAnalysis(
+        SegmentMetadataQueryQueryToolChest.mergeAnalyses(
+            TEST_DATASOURCE.getTableNames(),
+            analysis1,
+            analysis2,
+            strategy
+        ));
+  }
 ```
 
 ### To classify
@@ -798,8 +910,6 @@ public enum AggregatorMergeStrategy
 **`initTestDatasetVolumeChecker`**
 
 ```java
-
-
   public void initTestDatasetVolumeChecker(VolumeCheckResult pExpectedVolumeHealth) {
     this.expectedVolumeHealth = pExpectedVolumeHealth;
   }
@@ -882,6 +992,37 @@ public enum AggregatorMergeStrategy
     }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`visitBREAKPOINT`**
+
+```java
+@Override
+                        public void visitBREAKPOINT(final BREAKPOINT obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
+**`visitIMPDEP1`**
+
+```java
+@Override
+                        public void visitIMPDEP1(final IMPDEP1 obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
+**`visitIMPDEP2`**
+
+```java
+@Override
+                        public void visitIMPDEP2(final IMPDEP2 obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -933,6 +1074,106 @@ public enum AggregatorMergeStrategy
     }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createRNG`**
+
+```java
+    private static UniformRandomProvider createRNG(long seed) {
+        // The algorithm for SplittableRandom with the default increment passes:
+        // - Test U01 BigCrush
+        // - PractRand with at least 2^42 bytes (4 TiB) of output
+        return new SplittableRandom(seed)::nextLong;
+    }
+```
+
+**`nextDouble`**
+
+```java
+@Override
+            public double nextDouble() {
+                return Math.nextDown(1.0);
+            }
+```
+
+**`checkNextInRange`**
+
+```java
+    private static void checkNextInRange(String method,
+                                         long origin,
+                                         long bound,
+                                         LongSupplier nextMethod) {
+        // Do not change
+        // (statistical test assumes that 500 repeats are made with dof = 9).
+        final int numTests = 500;
+        final int numBins = 10; // dof = numBins - 1
+
+        // Set up bins.
+        final long[] binUpperBounds = new long[numBins];
+        // Range may be above a positive long: step = (bound - origin) / bins
+        final BigDecimal range = BigDecimal.valueOf(bound)
+                .subtract(BigDecimal.valueOf(origin));
+        final double step = range.divide(BigDecimal.TEN).doubleValue();
+        for (int k = 1; k < numBins; k++) {
+            binUpperBounds[k - 1] = origin + (long) (k * step);
+        }
+        // Final bound
+        binUpperBounds[numBins - 1] = bound;
+
+        // Create expected frequencies
+        final double[] expected = new double[numBins];
+        long previousUpperBound = origin;
+        final double scale = SAMPLE_SIZE_BD.divide(range, MathContext.DECIMAL128).doubleValue();
+        double sum = 0;
+        for (int k = 0; k < numBins; k++) {
+            final long binWidth = binUpperBounds[k] - previousUpperBound;
+            expected[k] = scale * binWidth;
+            sum += expected[k];
+            previousUpperBound = binUpperBounds[k];
+        }
+        Assertions.assertEquals(SAMPLE_SIZE, sum, SAMPLE_SIZE * RELATIVE_ERROR, "Invalid expected frequencies");
+
+        final int[] observed = new int[numBins];
+        // Chi-square critical value with 9 degrees of freedom
+        // and 1% significance level.
+        final double chi2CriticalValue = 21.665994333461924;
+
+        // For storing chi2 larger than the critical value.
+        final List<Double> failedStat = new ArrayList<>();
+        try {
+            final int lastDecileIndex = numBins - 1;
+            for (int i = 0; i < numTests; i++) {
+                Arrays.fill(observed, 0);
+                SAMPLE: for (int j = 0; j < SAMPLE_SIZE; j++) {
+                    final long value = nextMethod.getAsLong();
+                    if (value < origin) {
+                        Assertions.fail(String.format("Sample %d not within bound [%d, %d)",
+                                                      value, origin, bound));
+                    }
+
+                    for (int k = 0; k < lastDecileIndex; k++) {
+                        if (value < binUpperBounds[k]) {
+                            ++observed[k];
+                            continue SAMPLE;
+                        }
+                    }
+                    if (value >= bound) {
+                        Assertions.fail(String.format("Sample %d not within bound [%d, %d)",
+                                                      value, origin, bound));
+                    }
+                    ++observed[lastDecileIndex];
+                }
+
+                // Compute chi-square.
+                double chi2 = 0;
+                for (int k = 0; k < numBins; k++) {
+                    final double diff = observed[k] - expected[k];
+                    chi2 += diff * diff / expected[k];
+    // … 省略 29 行
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -966,6 +1207,54 @@ public enum AggregatorMergeStrategy
   }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`defaultRecordWithSchema`**
+
+```java
+  private <T> Record defaultRecordWithSchema(Schema schema, String key, T value) {
+    Record data = new GenericData.Record(schema);
+    data.put(key, value);
+    return data;
+  }
+```
+
+**`encodeGenericBlob`**
+
+```java
+  private byte[] encodeGenericBlob(GenericRecord data, EncoderType encoderType) throws IOException {
+    DatumWriter<GenericRecord> writer = new GenericDatumWriter<>(data.getSchema());
+    ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+    Encoder encoder = encoderType == EncoderType.BINARY ? EncoderFactory.get().binaryEncoder(outStream, null)
+        : EncoderFactory.get().jsonEncoder(data.getSchema(), outStream);
+    writer.write(data, encoder);
+    encoder.flush();
+    outStream.close();
+    return outStream.toByteArray();
+  }
+```
+
+**`decodeGenericBlob`**
+
+```java
+  private Record decodeGenericBlob(Schema expectedSchema, Schema schemaOfBlob, byte[] blob, EncoderType encoderType)
+      throws IOException {
+    if (blob == null) {
+      return null;
+    }
+    GenericData data = new GenericData();
+    data.setFastReaderEnabled(true);
+    GenericDatumReader<Record> reader = new GenericDatumReader<>(null, null, data);
+    reader.setExpected(expectedSchema);
+    reader.setSchema(schemaOfBlob);
+    Decoder decoder = encoderType == EncoderType.BINARY ? DecoderFactory.get().binaryDecoder(blob, null)
+        : DecoderFactory.get().jsonDecoder(schemaOfBlob, new ByteArrayInputStream(blob));
+    return reader.read(null, decoder);
+  }
+```
+
 ### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
@@ -993,7 +1282,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `roundTripDesSerScenarios`
 
 ```java
-
   private static List<DesSerTestScenario> roundTripDesSerScenarios() throws Exception {
     return SerDesCasIOTestUtils.roundTripDesSerScenariosComparingCasContents(desSerCycles,
             CAS_FILE_NAME);
@@ -1320,7 +1608,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — `OpcuaPlcDriverTest#getConnectionSecurityPolicies`（plc4x/plc4j/drivers/opcua/src/test/java/org/apache/plc4x/java/opcua/OpcuaPlcDriverTest.java）
 
 ```java
-
     private static Stream<Arguments> getConnectionSecurityPolicies() {
         return Stream.of(
             Arguments.of(SecurityPolicy.NONE, MessageSecurity.NONE),
@@ -1352,7 +1639,6 @@ public enum AggregatorMergeStrategy
 **`getConnectionString`**
 
 ```java
-
     private String getConnectionString(SecurityPolicy policy, MessageSecurity messageSecurity) throws Exception {
         switch (policy) {
             case NONE:
@@ -1381,7 +1667,6 @@ public enum AggregatorMergeStrategy
 **`params`**
 
 ```java
-
     private static String params(Entry<String, String> ... entries) {
         return Stream.of(entries)
             .map(entry -> entry.getKey() + "=" + URLEncoder.encode(entry.getValue(), Charset.defaultCharset()))
@@ -1407,6 +1692,251 @@ public enum AggregatorMergeStrategy
     @Order(1)
     void testGammaQLargeX(String datafile) throws Exception {
         assertIgammaLargeX("Commons", datafile, true, getLargeXTarget(), getUseAsymApprox(), true);
+    }
+```
+
+### Test-side helpers called by this test (6)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`assertIgammaLargeX`**
+
+```java
+    private static void assertIgammaLargeX(String name, String datafile, boolean invert,
+            DoubleDoubleBiPredicate targetData,
+            DoubleDoubleBiPredicate useAsymp,
+            boolean expectImprovement) throws Exception {
+        final TestUtils.ErrorStatistics e1 = new TestUtils.ErrorStatistics();
+        final TestUtils.ErrorStatistics e2 = new TestUtils.ErrorStatistics();
+
+        final Policy pol = Policy.getDefault();
+        final DoubleBinaryOperator without = (a, x) -> gammaIncompleteImp(a, x, invert, pol, NO_ASYM_APPROX);
+        final DoubleBinaryOperator with = (a, x) -> gammaIncompleteImp(a, x, invert, pol, useAsymp);
+        final int expectedField = invert ? 3 : 5;
+
+        // Count how many times the asymptotic approximation was used
+        int count = 0;
+
+        final String functionName = datafile + " " + name + (invert ? " Q" : " P");
+
+        // Set this to allow all data to be processed.
+        // If set to negative any failures will be output to stdout (useful to debugging).
+        final double tolerance = 1000;
+
+        try (DataReader in = new DataReader(datafile)) {
+            while (in.next()) {
+                final double a = in.getDouble(0);
+                final double x = in.getDouble(1);
+
+                // Test if this is target data
+                if (targetData.test(a, x)) {
+                    final BigDecimal expected = in.getBigDecimal(expectedField);
+
+                    // Ignore 0 or 1 results.
+                    // This test is interested in values that can be computed.
+                    final double value = expected.doubleValue();
+                    if ((int) value != value) {
+                        final double v1 = without.applyAsDouble(a, x);
+                        final double v2 = with.applyAsDouble(a, x);
+                        // Check if the asymptoptic approximation is used
+                        if (useAsymp.test(a, x)) {
+                            count++;
+                        }
+
+                        TestUtils.assertEquals(expected, v1, tolerance, e1::add,
+                            () -> functionName + " " + a + ", x=" + x);
+                        TestUtils.assertEquals(expected, v2, tolerance, e2::add,
+                            () -> functionName + " asymp " + a + ", x=" + x);
+                    }
+                }
+            }
+        }
+        // Use relaxed tolerances to allow the big data to pass.
+        // This test is mainly interested in checking a switch to the asymptotic approximation
+        // does not make the computation worse.
+        final double maxTolerance = 600;
+        final double rmsTolerance = 600;
+        if (e1.size() != 0) {
+            assertRms(TestError.of(functionName + "           ", maxTolerance, rmsTolerance), e1);
+            assertRms(TestError.of(functionName + " asymp " +
+                    String.format("%4d", count), maxTolerance, rmsTolerance), e2);
+            if (expectImprovement) {
+                // Better or equal. Equal applies if the asymptotic approximation was not used
+                // or computed the same result.
+                Assertions.assertTrue(e2.getRMS() <= e1.getRMS());
+            } else {
+                // Worse
+                Assertions.assertTrue(e2.getRMS() > e1.getRMS());
+            }
+        }
+    }
+```
+
+**`getLargeXTarget`**
+
+```java
+    private static DoubleDoubleBiPredicate getLargeXTarget() {
+        // Target the data that is computed using this method in Boost.
+        // It will test that the method switch is an improvement.
+        return USE_ASYM_APPROX;
+
+        // Target all data that is computed using this method in Commons numbers.
+        // It will test that when the method is switched it
+        // will not make the computation worse.
+        //return getUseAsymApprox();
+
+        // Allow more data to be tested.
+        // This predicate returns all valid data. Use it for testing but note that
+        // most data is not suitable for the large x approximation.
+        //return (a, x) -> !isIntOrHalfInt(a, x) && x >= 1.1 && (a < x);
+    }
+```
+
+**`getUseAsymApprox`**
+
+```java
+    private static DoubleDoubleBiPredicate getUseAsymApprox() {
+        // The asymptotic approximation is suitable for large x.
+        // It sums terms starting from 1 until convergence.
+        // term_n = term_(n-1) * (a-n) / z
+        // term_0 = 1
+        // Terms will get smaller if a < z.
+        // The Boost condition is:
+        // (x > 1000) && ((a < x) || (Math.abs(a - 50) / x < 1))
+        //
+        // This is not suitable if a ~ x and x is very large. The series takes
+        // too many iterations to converge. With limited precision it may not be
+        // possible to reduce the size of a, e.g. 1e16 - 1 == 1e16, thus
+        // the terms do not reduce in size if decremented directly and take
+        // many iterations to build a counter n that can be subtracted: a - n
+
+        // Experimental:
+        // Estimate the number of iterations.
+        //
+        // Assuming the term is reduced by a/z:
+        // term_n = (a/z)^n
+        // Setting the limit for term_n == epsilon (2^-52):
+        // n = log(epsilon) / log(a/z)
+        // Note: log(2^-52) is approximately -36.
+        // Estimate of n is high given the factor is (a-i)/z for iteration i.
+
+        // int limit = 1000;
+        // return (a, x) -> (x > 1000) && (a < x) && (-36 / Math.log(a / x) < limit);
+
+        // Simple:
+        //
+        // Target only data that will quickly converge.
+        // Not that there is loss of precision in the terms when a ~ z.
+        // The closer a/z is to 1 the more bits are lost in the result as the
+        // terms are inexact and this error is compounded by a large number of terms
+        // in the series.
+        // This condition ensures the asymptotic approximation is used when x -> infinity
+        // and a << x.
+        // Using the logic from above an overestimate of the maximum iterations is:
+        // threshold   value      iterations
+        // 1 - 2^-1    0.5        52
+        // 1 - 2^-2    0.75       125
+        // 1 - 2^-3    0.875      270
+        // 1 - 2^-4    0.9375     558
+        // 1 - 2^-5    0.96875    1135
+        // 1 - 2^-6    0.984375   2289
+        return (a, x) -> (x > 1000) && (a < x * 0.75);
+    }
+```
+
+**`gammaIncompleteImp`**
+
+```java
+    private static double gammaIncompleteImp(double a, double x,
+            boolean invert, Policy pol, DoubleDoubleBiPredicate useAsymApprox) {
+        if (Double.isNaN(a) || Double.isNaN(x) || a <= 0 || x < 0) {
+            return Double.NaN;
+        }
+
+        // Assumption for testing.
+        // Do not support int or half-int a.
+        // Do not support small x.
+        // These evaluations methods have been removed.
+        Assertions.assertFalse(isIntOrHalfInt(a, x), () -> "Invalid a : " + a);
+        Assertions.assertFalse(x < 1.1, () -> "Invalid x : " + x);
+
+        double result = 0;
+        int evalMethod;
+
+        // Configurable switch to the asymptotic approximation.
+        // The branch is used in Boost when:
+        // ((x > 1000) && ((a < x) || (Math.abs(a - 50) / x < 1)))
+        if (useAsymApprox.test(a, x)) {
+            // This case was added after Boost 1_68_0.
+            // See: https://github.com/boostorg/math/issues/168
+            // It is a source of error when a ~ z as the asymptotic approximation
+            // sums terms t_n+1 = t_n * (a - n - 1) / z starting from t_0 = 1.
+            // These terms are close to 1 when a ~ z and the sum has many terms
+            // with reduced precision.
+
+            // calculate Q via asymptotic approximation:
+            invert = !invert;
+            evalMethod = 7;
+        } else {
+            //
+            // Begin by testing whether we're in the "bad" zone
+            // where the result will be near 0.5 and the usual
+            // series and continued fractions are slow to converge:
+            //
+            boolean useTemme = false;
+            if (a > 20) {
+                final double sigma = Math.abs((x - a) / a);
+                if (a > 200) {
+                    //
+                    // This limit is chosen so that we use Temme's expansion
+                    // only if the result would be larger than about 10^-6.
+                    // Below that the regular series and continued fractions
+                    // converge OK, and if we use Temme's method we get increasing
+                    // errors from the dominant erfc term as it's (inexact) argument
+                    // increases in magnitude.
+                    //
+                    if (20 / a > sigma * sigma) {
+                        useTemme = true;
+                    }
+                } else {
+                    // Note in this zone we can't use Temme's expansion for
+                    // types longer than an 80-bit real:
+                    // it would require too many terms in the polynomials.
+                    if (sigma < 0.4) {
+                        useTemme = true;
+                    }
+                }
+            }
+            if (useTemme) {
+                evalMethod = 5;
+            } else {
+                //
+                // Regular case where the result will not be too close to 0.5.
+                //
+                // Changeover here occurs at P ~ Q ~ 0.5
+                // Note that series computation of P is about x2 faster than continued fraction
+                // calculation of Q, so try and use the CF only when really necessary,
+                // especially for small x.
+    // … 省略 80 行
+```
+
+**`assertEquals`**
+
+```java
+    private static void assertEquals(DoubleBinaryOperator fun, double x, double y, double expected) {
+        final double actual = fun.applyAsDouble(x, y);
+        Assertions.assertEquals(expected, actual, () -> x + ", " + y);
+    }
+```
+
+**`assertRms`**
+
+```java
+    private static void assertRms(TestError te, TestUtils.ErrorStatistics stats) {
+        final double rms = stats.getRMS();
+        //debugRms(te.toString(), stats.getMaxAbs(), rms, stats.getMean(), stats.size());
+        Assertions.assertTrue(rms <= te.getRmsTolerance(),
+            () -> String.format("%s RMS %s < %s", te, rms, te.getRmsTolerance()));
     }
 ```
 
@@ -1454,13 +1984,14 @@ public enum AggregatorMergeStrategy
 **`setupRootACL`**
 
 ```java
-        setupRootACL(authSchema);
+    private void setupRootACL(final AuthSchema authSchema) throws Exception {
+        setupRootACL(authSchema, Collections.<ACL>emptyList());
+    }
 ```
 
 **`sendAuthTestCommandRequest`**
 
 ```java
-
     private HttpURLConnection sendAuthTestCommandRequest(final AuthSchema authSchema, final boolean validAuthInfo) throws Exception  {
         final URL authTestURL = new URL(String.format(HTTPS_URL_FORMAT + "/" + AUTH_TEST_COMMAND_NAME, jettyAdminPort));
         final HttpURLConnection authTestConn = (HttpURLConnection) authTestURL.openConnection();
@@ -1473,25 +2004,60 @@ public enum AggregatorMergeStrategy
 **`addAuthInfo`**
 
 ```java
-            addAuthInfo(zk, authSchema);
+    private void addAuthInfo(final ZooKeeper zk, final AuthSchema authSchema) {
+        switch (authSchema) {
+            case DIGEST:
+                addAuthInfoForDigest(zk);
+                break;
+            case X509:
+                addAuthInfoForX509(zk);
+                break;
+            case IP:
+                addAuthInfoForIP(zk);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown auth schema");
+        }
+    }
 ```
 
 **`resetRootACL`**
 
 ```java
-            resetRootACL(zk);
+    public static void resetRootACL(final ZooKeeper zk) throws Exception {
+        zk.setACL(Commands.ROOT_PATH, OPEN_ACL_UNSAFE, -1);
+    }
 ```
 
 **`addAuthHeader`**
 
 ```java
-        addAuthHeader(authTestConn, authSchema, validAuthInfo);
+    public static void addAuthHeader(final HttpURLConnection conn, final AuthSchema authSchema, final boolean validAuthInfo) {
+        String authInfo;
+        switch (authSchema) {
+            case DIGEST:
+                authInfo = validAuthInfo ? buildAuthorizationForDigest() : buildInvalidAuthorizationForDigest();
+                break;
+            case X509:
+                authInfo = buildAuthorizationForX509();
+                break;
+            case IP:
+                authInfo = buildAuthorizationForIP();
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown auth schema");
+        }
+        conn.setRequestProperty(HttpHeader.AUTHORIZATION.asString(), authInfo);
+    }
 ```
 
 **`addAuthInfoForDigest`**
 
 ```java
-                addAuthInfoForDigest(zk);
+    public static void addAuthInfoForDigest(final ZooKeeper zk) {
+        final String idPassword = String.format("%s:%s", ROOT_USER, ROOT_PASSWORD);
+        zk.addAuthInfo(DIGEST_SCHEMA, idPassword.getBytes(StandardCharsets.UTF_8));
+    }
 ```
 
 ### To classify
@@ -1524,6 +2090,54 @@ public enum AggregatorMergeStrategy
 ```java
   enum EncoderType {
     BINARY, JSON
+  }
+```
+
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`defaultRecordWithSchema`**
+
+```java
+  private <T> Record defaultRecordWithSchema(Schema schema, String key, T value) {
+    Record data = new GenericData.Record(schema);
+    data.put(key, value);
+    return data;
+  }
+```
+
+**`encodeGenericBlob`**
+
+```java
+  private byte[] encodeGenericBlob(GenericRecord data, EncoderType encoderType) throws IOException {
+    DatumWriter<GenericRecord> writer = new GenericDatumWriter<>(data.getSchema());
+    ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+    Encoder encoder = encoderType == EncoderType.BINARY ? EncoderFactory.get().binaryEncoder(outStream, null)
+        : EncoderFactory.get().jsonEncoder(data.getSchema(), outStream);
+    writer.write(data, encoder);
+    encoder.flush();
+    outStream.close();
+    return outStream.toByteArray();
+  }
+```
+
+**`decodeGenericBlob`**
+
+```java
+  private Record decodeGenericBlob(Schema expectedSchema, Schema schemaOfBlob, byte[] blob, EncoderType encoderType)
+      throws IOException {
+    if (blob == null) {
+      return null;
+    }
+    GenericData data = new GenericData();
+    data.setFastReaderEnabled(true);
+    GenericDatumReader<Record> reader = new GenericDatumReader<>(null, null, data);
+    reader.setExpected(expectedSchema);
+    reader.setSchema(schemaOfBlob);
+    Decoder decoder = encoderType == EncoderType.BINARY ? DecoderFactory.get().binaryDecoder(blob, null)
+        : DecoderFactory.get().jsonDecoder(schemaOfBlob, new ByteArrayInputStream(blob));
+    return reader.read(null, decoder);
   }
 ```
 
@@ -1563,10 +2177,16 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### Parameter provider — 同文件内的 `getPath`
+### Parameter provider — `getPath`（calcite/core/src/main/java/org/apache/calcite/jdbc/CalciteSchema.java）
 
 ```java
-  protected abstract Collection<String> getPath();
+  public List<? extends List<String>> getPath() {
+    if (path != null) {
+      return path;
+    }
+    // Return a path consisting of just this schema.
+    return ImmutableList.of(path(null));
+  }
 ```
 
 ### Test-side helpers called by this test (6)
@@ -1576,7 +2196,6 @@ public enum AggregatorMergeStrategy
 **`checkRun`**
 
 ```java
-
   protected void checkRun(String path) throws Exception {
     final File inFile;
     final File outFile;
@@ -1646,14 +2265,18 @@ public enum AggregatorMergeStrategy
     }
     // Sanity check: we do not allow an empty input file, it may indicate that it was overwritten
     if (inFile.length() == 0) {
-    // … 省略 8 行
+      fail("Input file was empty: " + inFile + "\n");
+    // … 省略 7 行
 ```
 
 **`n2u`**
 
 ```java
-        n2u(file.getAbsolutePath()).replace(n2u('/' + target + '/'),
-            n2u('/' + replacement + '/')));
+  private static String n2u(String s) {
+    return File.separatorChar == '\\'
+        ? s.replace('\\', '/')
+        : s;
+  }
 ```
 
 **`replaceDir`**
@@ -1685,7 +2308,13 @@ public enum AggregatorMergeStrategy
 **`updatePlanner`**
 
 ```java
-                          updatePlanner(planner, (String) value);
+  private static void updatePlanner(RelOptPlanner planner, String value) {
+    List<RelOptRule> rulesAdd = new ArrayList<>();
+    List<RelOptRule> rulesRemove = new ArrayList<>();
+    parseRules(value, rulesAdd, rulesRemove);
+    rulesRemove.forEach(planner::removeRule);
+    rulesAdd.forEach(planner::addRule);
+  }
 ```
 
 ### To classify
@@ -1714,7 +2343,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Stream<Arguments> data() {
         // @formatter:off
         return Stream.of(
@@ -1759,7 +2387,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `createValueTestParameters`
 
 ```java
-
     private static Stream<Arguments> createValueTestParameters() throws MalformedURLException {
         // force the PatternOptionBuilder to load / modify the TypeHandler table.
         @SuppressWarnings("unused")
@@ -1883,7 +2510,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `generateTimestamps`
 
 ```java
-
   private static Stream<String> generateTimestamps() {
     return Stream.concat(Stream.generate(new Supplier<String>() {
       int i = 0;
@@ -1930,6 +2556,108 @@ public enum AggregatorMergeStrategy
   }
 ```
 
+### Test-side helpers called by this test (4)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`writeHive2`**
+
+```java
+  private static NanoTime writeHive2(String str) {
+    java.sql.Timestamp ts = toTimestampHive2(str);
+    Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of("GMT")));
+    calendar.setTime(ts);
+    int year = calendar.get(Calendar.YEAR);
+    if (calendar.get(Calendar.ERA) == GregorianCalendar.BC) {
+      year = 1 - year;
+    }
+    JulianDate jDateTime = JulianDate.of(year, calendar.get(Calendar.MONTH) + 1,  //java calendar index starting at 1.
+        calendar.get(Calendar.DAY_OF_MONTH), 0, 0, 0, 0);
+    int days = jDateTime.getJulianDayNumber();
+
+    long hour = calendar.get(Calendar.HOUR_OF_DAY);
+    long minute = calendar.get(Calendar.MINUTE);
+    long second = calendar.get(Calendar.SECOND);
+    long nanos = ts.getNanos();
+    long nanosOfDay = nanos + NANOS_PER_SECOND * second + NANOS_PER_MINUTE * minute + NANOS_PER_HOUR * hour;
+
+    return new NanoTime(days, nanosOfDay);
+  }
+```
+
+**`readHive4`**
+
+```java
+  private static Timestamp readHive4(NanoTime nt, String targetZone, boolean legacyConversion) {
+    return NanoTimeUtils.getTimestamp(nt, ZoneId.of(targetZone), legacyConversion);
+  }
+```
+
+**`toTimestampHive2`**
+
+```java
+  private static java.sql.Timestamp toTimestampHive2(String s) {
+    java.sql.Timestamp result;
+    s = s.trim();
+
+    // Throw away extra if more than 9 decimal places
+    int periodIdx = s.indexOf(".");
+    if (periodIdx != -1) {
+      if (s.length() - periodIdx > 9) {
+        s = s.substring(0, periodIdx + 10);
+      }
+    }
+    if (s.indexOf(' ') < 0) {
+      s = s.concat(" 00:00:00");
+    }
+    try {
+      result = java.sql.Timestamp.valueOf(s);
+    } catch (IllegalArgumentException e) {
+      result = null;
+    }
+    return result;
+  }
+```
+
+**`get`**
+
+```java
+@Override
+      public String get() {
+        StringBuilder sb = new StringBuilder(29);
+        int year = (i % 9999) + 1;
+        sb.append(zeros(4 - digits(year)));
+        sb.append(year);
+        sb.append('-');
+        int month = (i % 12) + 1;
+        sb.append(zeros(2 - digits(month)));
+        sb.append(month);
+        sb.append('-');
+        int day = (i % 28) + 1;
+        sb.append(zeros(2 - digits(day)));
+        sb.append(day);
+        sb.append(' ');
+        int hour = i % 24;
+        sb.append(zeros(2 - digits(hour)));
+        sb.append(hour);
+        sb.append(':');
+        int minute = i % 60;
+        sb.append(zeros(2 - digits(minute)));
+        sb.append(minute);
+        sb.append(':');
+        int second = i % 60;
+        sb.append(zeros(2 - digits(second)));
+        sb.append(second);
+        sb.append('.');
+        // Bitwise OR with one to avoid times with trailing zeros
+        int nano = (i % 1000000000) | 1;
+        sb.append(zeros(9 - digits(nano)));
+        sb.append(nano);
+        i++;
+        return sb.toString();
+      }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
@@ -1972,7 +2700,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `azureUris`
 
 ```java
-
   static Stream<Arguments> azureUris() {
     return Stream.of(
         Arguments.of(
@@ -2152,14 +2879,13 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### Test-side helpers called by this test (5)
+### Test-side helpers called by this test (6)
 
 > Parameter-dependent branching may live here rather than in the test body — check these before deciding.
 
 **`setupMocks`**
 
 ```java
-
   private void setupMocks() throws Exception {
     final Path tempPath = folder.resolve("temp" + COUNTER.incrementAndGet() + ".tar");
     tempFile = tempPath.toFile();
@@ -2229,7 +2955,8 @@ public enum AggregatorMergeStrategy
     doCallRealMethod().when(omDbCheckpointServletMock).getSnapshotDirs(any());
     doCallRealMethod().when(omDbCheckpointServletMock).
         processMetadataSnapshotRequest(any(), any(), anyBoolean(), anyBoolean());
-    // … 省略 4 行
+    doCallRealMethod().when(omDbCheckpointServletMock).writeDbDataToStream(any(), any(), any(), any());
+    // … 省略 3 行
 ```
 
 **`write`**
@@ -2268,6 +2995,18 @@ public enum AggregatorMergeStrategy
       }
 ```
 
+**`init`**
+
+```java
+@BeforeEach
+  void init() throws Exception {
+    conf = new OzoneConfiguration();
+    // ensure cache entries are not evicted thereby snapshot db's are not closed
+    conf.setTimeDuration(OMConfigKeys.OZONE_OM_SNAPSHOT_CACHE_CLEANUP_SERVICE_RUN_INTERVAL,
+        100, TimeUnit.MINUTES);
+  }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -2304,6 +3043,108 @@ public enum AggregatorMergeStrategy
         timestampString -> Stream.of("Asia/Singapore", "Pacific/Kiritimati", "Etc/GMT+12", "Pacific/Niue")
             .map(zoneId -> Arguments.of(timestampString, zoneId)));
   }
+```
+
+### Test-side helpers called by this test (4)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`writeHive2`**
+
+```java
+  private static NanoTime writeHive2(String str) {
+    java.sql.Timestamp ts = toTimestampHive2(str);
+    Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of("GMT")));
+    calendar.setTime(ts);
+    int year = calendar.get(Calendar.YEAR);
+    if (calendar.get(Calendar.ERA) == GregorianCalendar.BC) {
+      year = 1 - year;
+    }
+    JulianDate jDateTime = JulianDate.of(year, calendar.get(Calendar.MONTH) + 1,  //java calendar index starting at 1.
+        calendar.get(Calendar.DAY_OF_MONTH), 0, 0, 0, 0);
+    int days = jDateTime.getJulianDayNumber();
+
+    long hour = calendar.get(Calendar.HOUR_OF_DAY);
+    long minute = calendar.get(Calendar.MINUTE);
+    long second = calendar.get(Calendar.SECOND);
+    long nanos = ts.getNanos();
+    long nanosOfDay = nanos + NANOS_PER_SECOND * second + NANOS_PER_MINUTE * minute + NANOS_PER_HOUR * hour;
+
+    return new NanoTime(days, nanosOfDay);
+  }
+```
+
+**`readHive4`**
+
+```java
+  private static Timestamp readHive4(NanoTime nt, String targetZone, boolean legacyConversion) {
+    return NanoTimeUtils.getTimestamp(nt, ZoneId.of(targetZone), legacyConversion);
+  }
+```
+
+**`toTimestampHive2`**
+
+```java
+  private static java.sql.Timestamp toTimestampHive2(String s) {
+    java.sql.Timestamp result;
+    s = s.trim();
+
+    // Throw away extra if more than 9 decimal places
+    int periodIdx = s.indexOf(".");
+    if (periodIdx != -1) {
+      if (s.length() - periodIdx > 9) {
+        s = s.substring(0, periodIdx + 10);
+      }
+    }
+    if (s.indexOf(' ') < 0) {
+      s = s.concat(" 00:00:00");
+    }
+    try {
+      result = java.sql.Timestamp.valueOf(s);
+    } catch (IllegalArgumentException e) {
+      result = null;
+    }
+    return result;
+  }
+```
+
+**`get`**
+
+```java
+@Override
+      public String get() {
+        StringBuilder sb = new StringBuilder(29);
+        int year = (i % 9999) + 1;
+        sb.append(zeros(4 - digits(year)));
+        sb.append(year);
+        sb.append('-');
+        int month = (i % 12) + 1;
+        sb.append(zeros(2 - digits(month)));
+        sb.append(month);
+        sb.append('-');
+        int day = (i % 28) + 1;
+        sb.append(zeros(2 - digits(day)));
+        sb.append(day);
+        sb.append(' ');
+        int hour = i % 24;
+        sb.append(zeros(2 - digits(hour)));
+        sb.append(hour);
+        sb.append(':');
+        int minute = i % 60;
+        sb.append(zeros(2 - digits(minute)));
+        sb.append(minute);
+        sb.append(':');
+        int second = i % 60;
+        sb.append(zeros(2 - digits(second)));
+        sb.append(second);
+        sb.append('.');
+        // Bitwise OR with one to avoid times with trailing zeros
+        int nano = (i % 1000000000) | 1;
+        sb.append(zeros(9 - digits(nano)));
+        sb.append(nano);
+        i++;
+        return sb.toString();
+      }
 ```
 
 ### To classify
@@ -2392,6 +3233,37 @@ public enum AggregatorMergeStrategy
             } else {
                 assertContains(result, match);
             }
+        }
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getHtmlText`**
+
+```java
+    private static String getHtmlText(final String sampleFileName, boolean emulatePictureStorage) throws Exception {
+        Document newDocument = XMLHelper.newDocumentBuilder().newDocument();
+        WordToHtmlConverter wordToHtmlConverter = new WordToHtmlConverter(newDocument);
+
+        try (HWPFDocument hwpfDocument = new HWPFDocument(SAMPLES.openResourceAsStream(sampleFileName))) {
+            if (emulatePictureStorage) {
+                wordToHtmlConverter.setPicturesManager((content, pictureType, suggestedName, widthInches, heightInches) -> suggestedName);
+            }
+
+            wordToHtmlConverter.processDocument(hwpfDocument);
+
+            StringWriter stringWriter = new StringWriter();
+
+            Transformer transformer = XMLHelper.newTransformer();
+            transformer.setOutputProperty(OutputKeys.METHOD, "html");
+            transformer.transform(
+                new DOMSource(wordToHtmlConverter.getDocument()),
+                new StreamResult(stringWriter));
+
+            return stringWriter.toString();
         }
     }
 ```
@@ -2554,12 +3426,23 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — `TestFixtures#getOutputArchiveNames`（commons-compress/src/test/java/org/apache/commons/compress/changes/TestFixtures.java）
 
 ```java
-
     static Set<String> getOutputArchiveNames() {
         final Set<String> outputStreamArchiveNames = ArchiveStreamFactory.DEFAULT.getOutputStreamArchiveNames();
         outputStreamArchiveNames.remove(ArchiveStreamFactory.AR); // TODO BUG?
         outputStreamArchiveNames.remove(ArchiveStreamFactory.SEVEN_Z); // TODO Does not support streaming.
         return outputStreamArchiveNames;
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`archiveListDelete`**
+
+```java
+    private void archiveListDelete(final String prefix) {
+        archiveList.removeIf(entry -> entry.equals(prefix));
     }
 ```
 
@@ -2740,7 +3623,6 @@ public enum AggregatorMergeStrategy
 **`getTestConfigFile`**
 
 ```java
-
     private ReadonlyConfig getTestConfigFile(String configFile)
             throws FileNotFoundException, URISyntaxException {
         if (!configFile.startsWith("/")) {
@@ -2850,6 +3732,54 @@ public enum AggregatorMergeStrategy
   }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`defaultRecordWithSchema`**
+
+```java
+  private <T> Record defaultRecordWithSchema(Schema schema, String key, T value) {
+    Record data = new GenericData.Record(schema);
+    data.put(key, value);
+    return data;
+  }
+```
+
+**`encodeGenericBlob`**
+
+```java
+  private byte[] encodeGenericBlob(GenericRecord data, EncoderType encoderType) throws IOException {
+    DatumWriter<GenericRecord> writer = new GenericDatumWriter<>(data.getSchema());
+    ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+    Encoder encoder = encoderType == EncoderType.BINARY ? EncoderFactory.get().binaryEncoder(outStream, null)
+        : EncoderFactory.get().jsonEncoder(data.getSchema(), outStream);
+    writer.write(data, encoder);
+    encoder.flush();
+    outStream.close();
+    return outStream.toByteArray();
+  }
+```
+
+**`decodeGenericBlob`**
+
+```java
+  private Record decodeGenericBlob(Schema expectedSchema, Schema schemaOfBlob, byte[] blob, EncoderType encoderType)
+      throws IOException {
+    if (blob == null) {
+      return null;
+    }
+    GenericData data = new GenericData();
+    data.setFastReaderEnabled(true);
+    GenericDatumReader<Record> reader = new GenericDatumReader<>(null, null, data);
+    reader.setExpected(expectedSchema);
+    reader.setSchema(schemaOfBlob);
+    Decoder decoder = encoderType == EncoderType.BINARY ? DecoderFactory.get().binaryDecoder(blob, null)
+        : DecoderFactory.get().jsonDecoder(schemaOfBlob, new ByteArrayInputStream(blob));
+    return reader.read(null, decoder);
+  }
+```
+
 ### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
@@ -2884,7 +3814,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Stream<Arguments> data()
     {
         return Stream.of( new Object[][]
@@ -3044,7 +3973,8 @@ public enum AggregatorMergeStrategy
                     Data.data().valueEditorClass( TextValueEditor.class ).attribute( CN ).rawValue( ASCII )
                         .expectedRawValue( ASCII ).expectedDisplayValue( ASCII ).expectedHasValue( true )
                         .expectedStringOrBinaryValue( ASCII ) },
-    // … 省略 106 行
+
+    // … 省略 105 行
 ```
 
 ### Test-side helpers called by this test (1)
@@ -3054,7 +3984,6 @@ public enum AggregatorMergeStrategy
 **`setup`**
 
 ```java
-
     public void setup( String name, Data data ) throws Exception
     {
         IEntry entry = new DummyEntry( new Dn(), new DummyConnection( Schema.DEFAULT_SCHEMA ) );
@@ -3135,7 +4064,6 @@ public enum AggregatorMergeStrategy
 **`createCommandLine`**
 
 ```java
-
     private CommandLine createCommandLine(String[] args) throws ParseException {
         Options opts = OptionCollection.buildOptions();
         return DefaultParser.builder().setDeprecatedHandler(DeprecationReporter.getLogReporter())
@@ -3185,7 +4113,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `provideArguments`
 
 ```java
-
   public static Stream<Arguments> provideArguments() {
     assumeTrue(TestEnv.checkTestEnabled());
 
@@ -3204,7 +4131,6 @@ public enum AggregatorMergeStrategy
 **`setEnv`**
 
 ```java
-
   private void setEnv(ObjectStorage objectStore) {
     this.storage = objectStore;
   }
@@ -3213,7 +4139,6 @@ public enum AggregatorMergeStrategy
 **`getStream`**
 
 ```java
-
   private InputStream getStream(String key) {
     return storage.get(key).stream();
   }
@@ -3222,7 +4147,6 @@ public enum AggregatorMergeStrategy
 **`list`**
 
 ```java
-
   private ListObjectsResponse list(String prefix, String startAfter, int limit, String delimiter) {
     Preconditions.checkArgument(limit <= 1000, "Cannot list more than 1000 objects.");
     ListObjectsRequest request = ListObjectsRequest.builder()
@@ -3273,26 +4197,71 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### Test-side helpers called by this test (4)
+### Test-side helpers called by this test (3)
 
 > Parameter-dependent branching may live here rather than in the test body — check these before deciding.
-
-**`create`**
-
-```java
-    protected abstract S create();
-```
 
 **`assertCombine`**
 
 ```java
-        assertCombine(v -> Statistics.add(create(), v), values, expected, tol);
+    final S assertCombine(Function<long[], S> constructor,
+                          long[][] values, StatisticResult expected, DoubleTolerance tol) {
+        int n = values.length;
+        Assertions.assertNotEquals(0, n, "No data");
+        final List<S> stats = Arrays.stream(values)
+            .map(constructor::apply)
+            .collect(Collectors.toList());
+        List<S> stats2;
+        // If the combine is symmetric we perform the same algorithm
+        // but swap a+b to b+a at each step.
+        if (isCombineSymmetric()) {
+            stats2 = Arrays.stream(values)
+                .map(constructor::apply)
+                .collect(Collectors.toList());
+        } else {
+            stats2 = Collections.emptyList();
+        }
+        while (n != 1) {
+            // Process pairs (ending at an even size)
+            final int end = n & ~1;
+            for (int i = 0; i < end; i += 2) {
+                final int target = i >> 1;
+                final int lhs = i;
+                final int rhs = i + 1;
+                combine(stats, stats2, target, lhs, rhs);
+            }
+            // final value
+            if (end != n) {
+                // Merging with the previous pair will make the the end statistic
+                // progressively larger than the others. However the final merge should
+                // be limited to below a 1:2 ratio.
+                // Note: Set up the indices and copy the above code.
+                final int target = (n >> 1) - 1;
+                final int lhs = target;
+                final int rhs = end;
+                combine(stats, stats2, target, lhs, rhs);
+            }
+            n >>= 1;
+        }
+        final S stat = stats.get(0);
+        TestHelper.assertEquals(expected, stat, tol, () -> statisticName + ": " + format(values));
+        return stat;
+    }
 ```
 
 **`combine`**
 
 ```java
-                combine(stats, stats2, target, lhs, rhs);
+    private void combine(final List<S> stats, List<S> stats2, int target, int lhs, int rhs) {
+        final S s1 = assertCombine(stats.get(lhs), stats.get(rhs));
+        stats.set(target, s1);
+        if (isCombineSymmetric()) {
+            final S s2 = assertCombine(stats2.get(rhs), stats2.get(lhs));
+            TestHelper.assertEquals(s1, s2, null,
+                () -> statisticName + ": Non-symmetric combine");
+            stats2.set(target, s2);
+        }
+    }
 ```
 
 **`format`**
@@ -3336,7 +4305,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `provideInterpreter`
 
 ```java
-
   private static Stream<Arguments> provideInterpreter() {
     return Stream.of(
       Arguments.of(transportInterpreter),
@@ -3446,10 +4414,25 @@ public enum AggregatorMergeStrategy
 **`checkEvolution`**
 
 ```java
-    checkEvolution("struct<a:int,b:string>", "struct<a:int,b:string,c:double>",
-        struct(11, "foo"),
-        addSarg ? struct(0, "", 0.0) : struct(11, "foo", null),
-        addSarg);
+  private void checkEvolution(String writerType, String readerType,
+                              Object inputRow, Object expectedOutput,
+                              boolean tolerateSchema, boolean addSarg,
+                              boolean positional) {
+    SearchArgument sArg = null;
+    String[] sCols = null;
+    if (addSarg) {
+      sArg = SearchArgumentFactory
+        .newBuilder()
+        .lessThan("a", PredicateLeaf.Type.LONG, 10L)
+        .build();
+      sCols = new String[]{null, "a", null};
+    }
+
+    checkEvolution(writerType, readerType,
+                   inputRow, expectedOutput,
+                   tolerateSchema,
+                   sArg, sCols, positional);
+  }
 ```
 
 **`struct`**
@@ -3463,7 +4446,9 @@ public enum AggregatorMergeStrategy
 **`list`**
 
 ```java
-    return list(fields);
+  private List<Object> list(Object... elements) {
+    return Arrays.asList(elements);
+  }
 ```
 
 ### To classify
@@ -3829,8 +4814,22 @@ public enum NativeSeedType {
 **`improperlyUsesUiPlaceholders`**
 
 ```java
-                improperlyUsesUiPlaceholders(guiItem.getClass()),
-                () -> "UI " + componentHolder + " does not use placeholders properly, so the test is skipped");
+    private static boolean improperlyUsesUiPlaceholders(Class<? extends JMeterGUIComponent> klass) {
+        if (klass == JavaConfigGui.class || klass == JavaTestSamplerGui.class) {
+            // TODO: JavaConfigGui modifies UI when classname combobox changes, and it causes inconsistency between the
+            //   element state and the UI state. We ignore the discrepancy for now
+            return true;
+        }
+        if (klass == JUnitTestSamplerGui.class) {
+            // TODO: fix org.apache.jmeter.protocol.java.control.gui.JUnitTestSamplerGui.configure to use placeholders
+            return true;
+        }
+        if (klass == BackendListenerGui.class) {
+            // TODO: fix handling of default arguments in org.apache.jmeter.visualizers.backend.BackendListenerGui.actionPerformed
+            return true;
+        }
+        return false;
+    }
 ```
 
 ### To classify
@@ -3927,7 +4926,6 @@ public enum NativeSeedType {
 ### Parameter provider — 同文件内的 `generateTimestamps`
 
 ```java
-
   private static Stream<String> generateTimestamps() {
     return Stream.concat(Stream.generate(new Supplier<String>() {
       int i = 0;
@@ -3974,6 +4972,58 @@ public enum NativeSeedType {
   }
 ```
 
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`writeHive4`**
+
+```java
+  private static NanoTime writeHive4(String str, String sourceZone, boolean legacyConversion) {
+    Timestamp newTs = PrimitiveObjectInspectorUtils.getTimestampFromString(str);
+    return NanoTimeUtils.getNanoTime(newTs, ZoneId.of(sourceZone), legacyConversion);
+  }
+```
+
+**`readHive2`**
+
+```java
+  private static java.sql.Timestamp readHive2(NanoTime nt) {
+    //Current Hive parquet timestamp implementation stores it in UTC, but other components do not do that.
+    //If this file written by current Hive implementation itself, we need to do the reverse conversion, else skip the conversion.
+    int julianDay = nt.getJulianDay();
+    long nanosOfDay = nt.getTimeOfDayNanos();
+
+    long remainder = nanosOfDay;
+    julianDay += remainder / NANOS_PER_DAY;
+    remainder %= NANOS_PER_DAY;
+    if (remainder < 0) {
+      remainder += NANOS_PER_DAY;
+      julianDay--;
+    }
+
+    JulianDate jDateTime = JulianDate.of((double) julianDay);
+    Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of("GMT")));
+    calendar.set(Calendar.YEAR, jDateTime.toLocalDateTime().getYear());
+    calendar.set(Calendar.MONTH, jDateTime.toLocalDateTime().getMonthValue() - 1); //java calendar index starting at 1.
+    calendar.set(Calendar.DAY_OF_MONTH, jDateTime.toLocalDateTime().getDayOfMonth());
+
+    int hour = (int) (remainder / (NANOS_PER_HOUR));
+    remainder = remainder % (NANOS_PER_HOUR);
+    int minutes = (int) (remainder / (NANOS_PER_MINUTE));
+    remainder = remainder % (NANOS_PER_MINUTE);
+    int seconds = (int) (remainder / (NANOS_PER_SECOND));
+    long nanos = remainder % NANOS_PER_SECOND;
+
+    calendar.set(Calendar.HOUR_OF_DAY, hour);
+    calendar.set(Calendar.MINUTE, minutes);
+    calendar.set(Calendar.SECOND, seconds);
+    java.sql.Timestamp ts = new java.sql.Timestamp(calendar.getTimeInMillis());
+    ts.setNanos((int) nanos);
+    return ts;
+  }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
@@ -4004,6 +5054,126 @@ public enum NativeSeedType {
     }
 ```
 
+### Test-side helpers called by this test (6)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`asyncClient`**
+
+```java
+    private CloseableHttpAsyncClient asyncClient(final boolean validateConnections) throws Exception {
+        final PoolingAsyncClientConnectionManager connManager = PoolingAsyncClientConnectionManagerBuilder.create()
+            .setTlsStrategy(new DefaultClientTlsStrategy(SSLTestContexts.createClientSSLContext()))
+            .setDefaultTlsConfig(TlsConfig.custom()
+                .setSupportedProtocols(TLS.V_1_2)
+                .setVersionPolicy(httpVersionPolicy)
+                .build())
+            .build();
+        connManager.setDefaultConnectionConfig(getConnectionConfig(validateConnections));
+        connManager.setDefaultMaxPerRoute(1);
+        connManager.setMaxTotal(1);
+        final CloseableHttpAsyncClient client = HttpAsyncClients.custom()
+            .setIOReactorConfig(IOReactorConfig.custom()
+                .setSelectInterval(TimeValue.ofMilliseconds(1000))
+                .setIoThreadCount(1)
+                .build())
+            .setConnectionManager(connManager)
+            .disableAutomaticRetries()
+            .build();
+        client.start();
+        return client;
+    }
+```
+
+**`sendRequestBatch`**
+
+```java
+    private List<Future<SimpleHttpResponse>> sendRequestBatch(
+        final CloseableHttpAsyncClient client,
+        final int batchSize
+    ) {
+        final List<Future<SimpleHttpResponse>> futures = new ArrayList<>();
+        for (int i = 0; i < batchSize; i++) {
+            futures.add(sendPing(client));
+        }
+        waitForCompletion(futures);
+        return futures;
+    }
+```
+
+**`checkResults`**
+
+```java
+    private void checkResults(final String name, final List<Future<SimpleHttpResponse>> futures) {
+        int ok = 0, error = 0, notExecuted = 0, closed = 0, reset = 0, other = 0;
+        for (final Future<SimpleHttpResponse> future : futures) {
+            try {
+                future.get();
+                ok++;
+            } catch (final Exception ex) {
+                error++;
+                if (ex.getCause() instanceof RequestNotExecutedException) {
+                    notExecuted++;
+                } else if (ex.getCause() instanceof ConnectionClosedException) {
+                    closed++;
+                } else if (ex.getCause() instanceof SocketException && ex.getCause().getMessage().contains("reset")) {
+                    reset++;
+                } else {
+                    other++;
+                }
+            }
+        }
+
+        if (error > 0) {
+            System.out.printf("%s: %s: %,d succeeded; %,d failed (%.2f%% success rate, %.2f%% retriable)%n",
+                getClass().getSimpleName().toLowerCase(), name, ok, error,
+                (double) ok / (ok + error) * 100d,
+                (double) notExecuted / (ok + error) * 100d);
+        } else {
+            System.out.printf("%s: %s: %,d succeeded; %,d failed (%.2f%% success rate)%n",
+                getClass().getSimpleName().toLowerCase(), name, ok, error, (((double) ok) / (ok + error)) * 100d);
+        }
+        if (false) {
+            System.out.printf("  %,d not executed, %,d closed, %,d reset, %,d other%n", notExecuted, closed, reset,
+                other);
+        }
+    }
+```
+
+**`getValidationPrefix`**
+
+```java
+    private static String getValidationPrefix(final boolean validateConnections) {
+        if (validateConnections) {
+            return "Validation enabled:  ";
+        } else {
+            return "Validation disabled: ";
+        }
+    }
+```
+
+**`getConnectionConfig`**
+
+```java
+    private static ConnectionConfig getConnectionConfig(final boolean validateConnections) {
+        return ConnectionConfig.custom()
+            .setTimeToLive(MAX_VALUE)
+            .setValidateAfterInactivity(validateConnections ? ZERO_MILLISECONDS : NEG_ONE_MILLISECOND)
+            .build();
+    }
+```
+
+**`sendPing`**
+
+```java
+    private Future<SimpleHttpResponse> sendPing(final CloseableHttpAsyncClient client) {
+        final HttpHost target = new HttpHost(scheme, "localhost", port);
+        final SimpleHttpRequest request = SimpleRequestBuilder.get().setHttpHost(target).setPath("/ping").build();
+
+        return client.execute(request, null);
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -4029,6 +5199,18 @@ public enum NativeSeedType {
         final Integral element = (Integral) layoutElements.get(0);
         assertEquals(layoutStr, element.getTag());
     }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getLayoutElements`**
+
+```java
+        public List<AttributeLayoutElement> getLayoutElements() {
+            return attributeLayoutElements;
+        }
 ```
 
 ### To classify
@@ -4062,7 +5244,6 @@ public enum NativeSeedType {
 ### Parameter provider — 同文件内的 `testIntPartition`
 
 ```java
-
     static Stream<Arguments> testIntPartition() {
         final Stream.Builder<Arguments> builder = Stream.builder();
         UniformRandomProvider rng = RandomSource.XO_SHI_RO_128_PP.create(123);
@@ -4176,7 +5357,6 @@ public enum NativeSeedType {
 ### Parameter provider — 同文件内的 `testIntPartitionBigData`
 
 ```java
-
     static Stream<Arguments> testIntPartitionBigData() {
         final Stream.Builder<Arguments> builder = Stream.builder();
         final UniformRandomProvider rng = RandomSource.XO_SHI_RO_128_PP.create(123);
@@ -4203,6 +5383,65 @@ public enum NativeSeedType {
         Arrays.fill(x, 123);
         builder.add(Arguments.of(x, new int[] {x.length >>> 1}));
         return builder.build();
+    }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`assertPartition`**
+
+```java
+    static void assertPartition(double[] values, int[] indices, DoublePartitionFunction function,
+        boolean sortedRange) {
+        final double[] data = values.clone();
+        final double[] sorted = sort(values);
+        // Indices may be destructively modified
+        function.partition(data, indices.clone(), indices.length);
+        if (indices.length == 0) {
+            return;
+        }
+        for (final int k : indices) {
+            Assertions.assertEquals(sorted[k], data[k], () -> "k[" + k + "]");
+        }
+        // Check partial ordering
+        Arrays.sort(indices);
+        int i = 0;
+        for (final int k : indices) {
+            final double value = sorted[k];
+            while (i < k) {
+                final int j = i;
+                Assertions.assertTrue(Double.compare(data[i], value) <= 0,
+                    () -> j + " < " + k + " : " + data[j] + " < " + value);
+                i++;
+            }
+        }
+        final int k = indices[indices.length - 1];
+        final double value = sorted[k];
+        while (i < data.length) {
+            final int j = i;
+            Assertions.assertTrue(Double.compare(data[i], value) >= 0,
+                () -> k + " < " + j);
+            i++;
+        }
+        if (sortedRange) {
+            final double[] a = Arrays.copyOfRange(sorted, indices[0], k + 1);
+            final double[] b = Arrays.copyOfRange(data, indices[0], k + 1);
+            Assertions.assertArrayEquals(a, b, "Entire range of indices is not sorted");
+        }
+        Arrays.sort(data);
+        Assertions.assertArrayEquals(sorted, data, "Data destroyed");
+    }
+```
+
+**`sort`**
+
+```java
+    private static double[] sort(double[] values) {
+        final double[] sorted = values.clone();
+        Arrays.sort(sorted);
+        return sorted;
     }
 ```
 
@@ -4310,7 +5549,6 @@ public enum NativeSeedType {
 ### Parameter provider — 同文件内的 `data2`
 
 ```java
-
   public static Stream<Arguments> data2() {
     return TestValidatingIO.convertTo2dStream(encodings, skipLevels, testSchemas());
   }
@@ -4323,13 +5561,28 @@ public enum NativeSeedType {
 **`performTest`**
 
 ```java
-    performTest(encoding, skip, jsonWriterSchema, writerCalls, jsonWriterSchema, writerCalls);
+  private void performTest(Encoding encoding, int skipLevel, String jsonWriterSchema, String writerCalls,
+      String jsonReaderSchema, String readerCalls) throws IOException {
+    for (int i = 0; i < COUNT; i++) {
+      testOnce(jsonWriterSchema, writerCalls, jsonReaderSchema, readerCalls, encoding, skipLevel);
+    }
+  }
 ```
 
 **`testOnce`**
 
 ```java
-      testOnce(jsonWriterSchema, writerCalls, jsonReaderSchema, readerCalls, encoding, skipLevel);
+  private void testOnce(String jsonWriterSchema, String writerCalls, String jsonReaderSchema, String readerCalls,
+      Encoding encoding, int skipLevel) throws IOException {
+    Object[] values = TestValidatingIO.randomValues(writerCalls);
+    Object[] expected = TestValidatingIO.randomValues(readerCalls);
+
+    Schema writerSchema = new Schema.Parser().parse(jsonWriterSchema);
+    byte[] bytes = TestValidatingIO.make(writerSchema, writerCalls, values, encoding);
+    Schema readerSchema = new Schema.Parser().parse(jsonReaderSchema);
+    TestValidatingIO.print(encoding, skipLevel, writerSchema, readerSchema, values, expected);
+    check(writerSchema, readerSchema, bytes, readerCalls, expected, encoding, skipLevel);
+  }
 ```
 
 ### To classify

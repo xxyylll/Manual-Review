@@ -153,7 +153,6 @@ Record your answers in `packet_R2.csv`, one row per item, matched by `item_id`. 
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Stream<Arguments> data() throws Exception {
         // Function "Text" uses custom-formats which are locale specific
         // can't set the locale on a per-testrun execution, as some settings have been
@@ -174,6 +173,26 @@ Record your answers in `packet_R2.csv`, one row per item, matched by `item_id`. 
         // processFunctionGroup(data, SS.START_FUNCTIONS_ROW_INDEX, "Text");
 
         return data.stream();
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`ignoredFormulaTestCase`**
+
+```java
+    private static void ignoredFormulaTestCase(String cellFormula) {
+        // full row ranges are not parsed properly yet.
+        // These cases currently work in svn trunk because of another bug which causes the
+        // formula to get rendered as COLUMN($A$1:$IV$2) or ROW($A$2:$IV$3)
+        assumeFalse("COLUMN(1:2)".equals(cellFormula));
+        assumeFalse("ROW(2:3)".equals(cellFormula));
+
+        // currently throws NPE because unknown function "currentcell" causes name lookup
+        // Name lookup requires some equivalent object of the Workbook within xSSFWorkbook.
+        assumeFalse("ISREF(currentcell())".equals(cellFormula));
     }
 ```
 
@@ -351,7 +370,6 @@ public enum TestSpec {
 **`individuals`**
 
 ```java
-
     private static Set<String> individuals(OntModel m, String name, boolean direct) {
         return m.getOntClass(NS + name).individuals(direct).map(Resource::getLocalName).collect(Collectors.toSet());
     }
@@ -427,6 +445,48 @@ public enum ElasticsearchClientType {
     }
 ```
 
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createExpressionEvaluator`**
+
+```java
+    private ExpressionEvaluator createExpressionEvaluator(
+            MavenProject project, PluginDescriptor pluginDescriptor, Properties executionProperties) throws Exception {
+        ArtifactRepository repo = getLocalRepository();
+
+        MutablePlexusContainer container = (MutablePlexusContainer) getContainer();
+        MavenSession session = createSession(container, repo, executionProperties);
+        session.setCurrentProject(project);
+        session.getRequest().setRootDirectory(rootDirectory);
+
+        MojoDescriptor mojo = new MojoDescriptor();
+        mojo.setPluginDescriptor(pluginDescriptor);
+        mojo.setGoal("goal");
+
+        MojoExecution mojoExecution = new MojoExecution(mojo);
+
+        return new PluginParameterExpressionEvaluator(session, mojoExecution);
+    }
+```
+
+**`createSession`**
+
+```java
+@SuppressWarnings("deprecation")
+    private static MavenSession createSession(PlexusContainer container, ArtifactRepository repo, Properties properties)
+            throws CycleDetectedException, DuplicateProjectException {
+        MavenExecutionRequest request = new DefaultMavenExecutionRequest()
+                .setSystemProperties(properties)
+                .setGoals(Collections.emptyList())
+                .setBaseDirectory(new File(""))
+                .setLocalRepository(repo);
+
+        return new MavenSession(container, request, new DefaultMavenExecutionResult(), Collections.emptyList());
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -454,6 +514,28 @@ public enum ElasticsearchClientType {
         }
         final double p = new ChiSquareTest().chiSquareTest(counts);
         Assertions.assertFalse(p < 1e-3, () -> "p-value too small: " + p);
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`natural`**
+
+```java
+    private static int[] natural(int from, int to, int length) {
+        final int[] array = new int[length];
+        for (int i = 0; i < from; i++) {
+            array[i] = i - from;
+        }
+        for (int i = from; i < to; i++) {
+            array[i] = i - from;
+        }
+        for (int i = to; i < length; i++) {
+            array[i] = i - from;
+        }
+        return array;
     }
 ```
 
@@ -491,12 +573,31 @@ public enum ElasticsearchClientType {
 ### Parameter provider — `TestFixtures#getOutputArchiveNames`（commons-compress/src/test/java/org/apache/commons/compress/changes/TestFixtures.java）
 
 ```java
-
     static Set<String> getOutputArchiveNames() {
         final Set<String> outputStreamArchiveNames = ArchiveStreamFactory.DEFAULT.getOutputStreamArchiveNames();
         outputStreamArchiveNames.remove(ArchiveStreamFactory.AR); // TODO BUG?
         outputStreamArchiveNames.remove(ArchiveStreamFactory.SEVEN_Z); // TODO Does not support streaming.
         return outputStreamArchiveNames;
+    }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createChangeSet`**
+
+```java
+    private <A extends ArchiveEntry> ChangeSet<A> createChangeSet() {
+        return new ChangeSet<>();
+    }
+```
+
+**`archiveListDelete`**
+
+```java
+    private void archiveListDelete(final String prefix) {
+        archiveList.removeIf(entry -> entry.equals(prefix));
     }
 ```
 
@@ -600,7 +701,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Object[][] data() {
         return new Object[][] {
             {"log4j.simple", Collections.singletonList("simple")},
@@ -692,8 +792,20 @@ public enum AggregatorMergeStrategy
 **`mergeWithStrategy`**
 
 ```java
-        mergeWithStrategy(analysis1NullProjection, analysis2NullProjection, aggregatorMergeStrategy).getProjections()
-    );
+  private static SegmentAnalysis mergeWithStrategy(
+      SegmentAnalysis analysis1,
+      SegmentAnalysis analysis2,
+      AggregatorMergeStrategy strategy
+  )
+  {
+    return SegmentMetadataQueryQueryToolChest.finalizeAnalysis(
+        SegmentMetadataQueryQueryToolChest.mergeAnalyses(
+            TEST_DATASOURCE.getTableNames(),
+            analysis1,
+            analysis2,
+            strategy
+        ));
+  }
 ```
 
 ### To classify
@@ -798,8 +910,6 @@ public enum AggregatorMergeStrategy
 **`initTestDatasetVolumeChecker`**
 
 ```java
-
-
   public void initTestDatasetVolumeChecker(VolumeCheckResult pExpectedVolumeHealth) {
     this.expectedVolumeHealth = pExpectedVolumeHealth;
   }
@@ -882,6 +992,37 @@ public enum AggregatorMergeStrategy
     }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`visitBREAKPOINT`**
+
+```java
+@Override
+                        public void visitBREAKPOINT(final BREAKPOINT obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
+**`visitIMPDEP1`**
+
+```java
+@Override
+                        public void visitIMPDEP1(final IMPDEP1 obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
+**`visitIMPDEP2`**
+
+```java
+@Override
+                        public void visitIMPDEP2(final IMPDEP2 obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -933,6 +1074,106 @@ public enum AggregatorMergeStrategy
     }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`createRNG`**
+
+```java
+    private static UniformRandomProvider createRNG(long seed) {
+        // The algorithm for SplittableRandom with the default increment passes:
+        // - Test U01 BigCrush
+        // - PractRand with at least 2^42 bytes (4 TiB) of output
+        return new SplittableRandom(seed)::nextLong;
+    }
+```
+
+**`nextDouble`**
+
+```java
+@Override
+            public double nextDouble() {
+                return Math.nextDown(1.0);
+            }
+```
+
+**`checkNextInRange`**
+
+```java
+    private static void checkNextInRange(String method,
+                                         long origin,
+                                         long bound,
+                                         LongSupplier nextMethod) {
+        // Do not change
+        // (statistical test assumes that 500 repeats are made with dof = 9).
+        final int numTests = 500;
+        final int numBins = 10; // dof = numBins - 1
+
+        // Set up bins.
+        final long[] binUpperBounds = new long[numBins];
+        // Range may be above a positive long: step = (bound - origin) / bins
+        final BigDecimal range = BigDecimal.valueOf(bound)
+                .subtract(BigDecimal.valueOf(origin));
+        final double step = range.divide(BigDecimal.TEN).doubleValue();
+        for (int k = 1; k < numBins; k++) {
+            binUpperBounds[k - 1] = origin + (long) (k * step);
+        }
+        // Final bound
+        binUpperBounds[numBins - 1] = bound;
+
+        // Create expected frequencies
+        final double[] expected = new double[numBins];
+        long previousUpperBound = origin;
+        final double scale = SAMPLE_SIZE_BD.divide(range, MathContext.DECIMAL128).doubleValue();
+        double sum = 0;
+        for (int k = 0; k < numBins; k++) {
+            final long binWidth = binUpperBounds[k] - previousUpperBound;
+            expected[k] = scale * binWidth;
+            sum += expected[k];
+            previousUpperBound = binUpperBounds[k];
+        }
+        Assertions.assertEquals(SAMPLE_SIZE, sum, SAMPLE_SIZE * RELATIVE_ERROR, "Invalid expected frequencies");
+
+        final int[] observed = new int[numBins];
+        // Chi-square critical value with 9 degrees of freedom
+        // and 1% significance level.
+        final double chi2CriticalValue = 21.665994333461924;
+
+        // For storing chi2 larger than the critical value.
+        final List<Double> failedStat = new ArrayList<>();
+        try {
+            final int lastDecileIndex = numBins - 1;
+            for (int i = 0; i < numTests; i++) {
+                Arrays.fill(observed, 0);
+                SAMPLE: for (int j = 0; j < SAMPLE_SIZE; j++) {
+                    final long value = nextMethod.getAsLong();
+                    if (value < origin) {
+                        Assertions.fail(String.format("Sample %d not within bound [%d, %d)",
+                                                      value, origin, bound));
+                    }
+
+                    for (int k = 0; k < lastDecileIndex; k++) {
+                        if (value < binUpperBounds[k]) {
+                            ++observed[k];
+                            continue SAMPLE;
+                        }
+                    }
+                    if (value >= bound) {
+                        Assertions.fail(String.format("Sample %d not within bound [%d, %d)",
+                                                      value, origin, bound));
+                    }
+                    ++observed[lastDecileIndex];
+                }
+
+                // Compute chi-square.
+                double chi2 = 0;
+                for (int k = 0; k < numBins; k++) {
+                    final double diff = observed[k] - expected[k];
+                    chi2 += diff * diff / expected[k];
+    // … 省略 29 行
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -963,6 +1204,54 @@ public enum AggregatorMergeStrategy
 ```java
   enum EncoderType {
     BINARY, JSON
+  }
+```
+
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`defaultRecordWithSchema`**
+
+```java
+  private <T> Record defaultRecordWithSchema(Schema schema, String key, T value) {
+    Record data = new GenericData.Record(schema);
+    data.put(key, value);
+    return data;
+  }
+```
+
+**`encodeGenericBlob`**
+
+```java
+  private byte[] encodeGenericBlob(GenericRecord data, EncoderType encoderType) throws IOException {
+    DatumWriter<GenericRecord> writer = new GenericDatumWriter<>(data.getSchema());
+    ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+    Encoder encoder = encoderType == EncoderType.BINARY ? EncoderFactory.get().binaryEncoder(outStream, null)
+        : EncoderFactory.get().jsonEncoder(data.getSchema(), outStream);
+    writer.write(data, encoder);
+    encoder.flush();
+    outStream.close();
+    return outStream.toByteArray();
+  }
+```
+
+**`decodeGenericBlob`**
+
+```java
+  private Record decodeGenericBlob(Schema expectedSchema, Schema schemaOfBlob, byte[] blob, EncoderType encoderType)
+      throws IOException {
+    if (blob == null) {
+      return null;
+    }
+    GenericData data = new GenericData();
+    data.setFastReaderEnabled(true);
+    GenericDatumReader<Record> reader = new GenericDatumReader<>(null, null, data);
+    reader.setExpected(expectedSchema);
+    reader.setSchema(schemaOfBlob);
+    Decoder decoder = encoderType == EncoderType.BINARY ? DecoderFactory.get().binaryDecoder(blob, null)
+        : DecoderFactory.get().jsonDecoder(schemaOfBlob, new ByteArrayInputStream(blob));
+    return reader.read(null, decoder);
   }
 ```
 
@@ -1027,7 +1316,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `parameterProvider`
 
 ```java
-
     public static Stream<Arguments> parameterProvider() {
         List<Arguments> lst = new ArrayList<>();
 
@@ -1045,7 +1333,6 @@ public enum AggregatorMergeStrategy
 **`processText`**
 
 ```java
-
     private boolean processText(String text) throws IOException {
         try (BufferedReader in = new BufferedReader(new StringReader(text))) {
             IHeaders headers = HeaderCheckWorker.readHeader(in,
@@ -1245,6 +1532,19 @@ public enum AggregatorMergeStrategy
     // … 省略 460 行
 ```
 
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getType`**
+
+```java
+    private static Class<?> getType(RandomSourceInternal randomSourceInternal) {
+        // The first constructor argument is always the seed type
+        return randomSourceInternal.getArgs()[0];
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
@@ -1347,7 +1647,6 @@ public enum TimePrecision {
 ### Parameter provider — 同文件内的 `numberTestParameters`
 
 ```java
-
     private static Stream<Arguments> numberTestParameters() {
         final List<Arguments> lst = new ArrayList<>();
 
@@ -1409,6 +1708,31 @@ public enum TimePrecision {
          * Forces forked execution. Always carried out, most isolated and "most correct", but is slow as it uses child process.
          */
         FORKED
+    }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`mvn4Home`**
+
+```java
+    public Path mvn4Home() {
+        return Paths.get(System.getProperty("maven4home"));
+    }
+```
+
+**`getExecutorRequest`**
+
+```java
+    private ExecutorRequest.Builder getExecutorRequest(ExecutorHelper helper) {
+        ExecutorRequest.Builder builder =
+                helper.executorRequest().cwd(cwd).argument("-Daether.remoteRepositoryFilter.prefixes=false");
+        if (System.getProperty("localRepository") != null) {
+            builder.argument("-Dmaven.repo.local.tail=" + System.getProperty("localRepository"));
+        }
+        return builder;
     }
 ```
 
@@ -1532,6 +1856,32 @@ public enum TimePrecision {
     }
 ```
 
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`assertMean`**
+
+```java
+    private static void assertMean(double lower, double upper, double expected, double eps) {
+        final double mean = TruncatedNormalDistribution.moment1(lower, upper);
+        Assertions.assertEquals(0 - mean, TruncatedNormalDistribution.moment1(-upper, -lower));
+        TestUtils.assertEquals(expected, mean, DoubleTolerances.relative(eps),
+            () -> String.format("mean(%s, %s)", lower, upper));
+    }
+```
+
+**`assertVariance`**
+
+```java
+    private static void assertVariance(double lower, double upper, double expected, double eps) {
+        final double variance = TruncatedNormalDistribution.variance(lower, upper);
+        Assertions.assertEquals(variance, TruncatedNormalDistribution.variance(-upper, -lower));
+        TestUtils.assertEquals(expected, variance, DoubleTolerances.relative(eps),
+            () -> String.format("variance(%s, %s)", lower, upper));
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -1560,6 +1910,18 @@ public enum TimePrecision {
 ```java
     static IntStream getLengths() {
         return IntStream.rangeClosed(0, (Long.BYTES / Integer.BYTES) * 2);
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getOutputLength`**
+
+```java
+    private static int getOutputLength(int ints) {
+        return (int) Math.ceil((double) ints / 2);
     }
 ```
 
@@ -1654,7 +2016,6 @@ public enum TimePrecision {
 **`setUp`**
 
 ```java
-
   public void setUp(TimeoutSource timeoutSource) throws Exception {
     Configuration conf = WebHdfsTestUtil.createConf();
     serverSocket = new ServerSocket(0, CONNECTION_BACKLOG);
@@ -1680,7 +2041,54 @@ public enum TimePrecision {
 **`startSingleTemporaryRedirectResponseThread`**
 
 ```java
-    startSingleTemporaryRedirectResponseThread(true);
+  private void startSingleTemporaryRedirectResponseThread(
+      final boolean consumeConnectionBacklog) {
+    fs.connectionFactory = URLConnectionFactory.DEFAULT_SYSTEM_CONNECTION_FACTORY;
+    serverThread = new Thread() {
+      @Override
+      public void run() {
+        Socket clientSocket = null;
+        OutputStream out = null;
+        InputStream in = null;
+        InputStreamReader isr = null;
+        BufferedReader br = null;
+        try {
+          // Accept one and only one client connection.
+          clientSocket = serverSocket.accept();
+
+          // Immediately setup conditions for subsequent connections.
+          fs.connectionFactory = connectionFactory;
+          if (consumeConnectionBacklog) {
+            consumeConnectionBacklog();
+          }
+
+          // Consume client's HTTP request by reading until EOF or empty line.
+          in = clientSocket.getInputStream();
+          isr = new InputStreamReader(in);
+          br = new BufferedReader(isr);
+          for (;;) {
+            String line = br.readLine();
+            if (line == null || line.isEmpty()) {
+              break;
+            }
+          }
+
+          // Write response.
+          out = clientSocket.getOutputStream();
+          out.write(temporaryRedirect().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+          // Fail the test on any I/O error in the server thread.
+          LOG.error("unexpected IOException in server thread", e);
+          fail("unexpected IOException in server thread: " + e);
+        } finally {
+          // Clean it all up.
+          IOUtils.cleanupWithLogger(LOG, br, isr, in, out);
+          IOUtils.closeSocket(clientSocket);
+        }
+      }
+    };
+    serverThread.start();
+  }
 ```
 
 **`run`**
@@ -1732,7 +2140,29 @@ public enum TimePrecision {
 **`consumeConnectionBacklog`**
 
 ```java
-    consumeConnectionBacklog();
+  private void consumeConnectionBacklog() throws IOException {
+    for (int i = 0; i < CLIENTS_TO_CONSUME_BACKLOG; ++i) {
+      SocketChannel client = SocketChannel.open();
+      client.configureBlocking(false);
+      client.connect(nnHttpAddress);
+      clients.add(client);
+    }
+    try {
+      GenericTestUtils.waitFor(() -> {
+        try (SocketChannel c = SocketChannel.open()) {
+          c.socket().connect(nnHttpAddress, 100);
+        } catch (SocketTimeoutException e) {
+          return true;
+        } catch (IOException e) {
+          LOG.debug("unexpected exception: " + e);
+        }
+        return false;
+      }, 100, 10000);
+    } catch (TimeoutException | InterruptedException e) {
+      failedToConsumeBacklog = true;
+      assumeBacklogConsumed();
+    }
+  }
 ```
 
 **`temporaryRedirect`**
@@ -1814,7 +2244,6 @@ public enum TimePrecision {
 ### Parameter provider — 同文件内的 `createDateFixtures`
 
 ```java
-
     private static Stream<Date> createDateFixtures() {
         return Stream.of(Date.from(Instant.EPOCH), Date.from(Instant.ofEpochSecond(0)), Date.from(Instant.ofEpochSecond(40_000)));
 
@@ -1870,7 +2299,6 @@ public enum TimePrecision {
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
   public static Collection<Object[]> data()
   {
     Object[][] data = new Object[][]{
@@ -1963,7 +2391,6 @@ public enum TimePrecision {
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Stream<Arguments> data() {
         // Function "Text" uses custom-formats which are locale specific
         // can't set the locale on a per-testrun execution, as some settings have been
@@ -2027,20 +2454,18 @@ public enum TimePrecision {
 ### Parameter provider — 同文件内的 `parameters`
 
 ```java
-
     public static Collection<Object[]> parameters() {
         return parameterize(VERSIONS);
     }
 ```
 
-### Test-side helpers called by this test (2)
+### Test-side helpers called by this test (3)
 
 > Parameter-dependent branching may live here rather than in the test body — check these before deciding.
 
 **`initSftpVersionsTest`**
 
 ```java
-
     public void initSftpVersionsTest(int version) throws Exception {
         testVersion = version;
         setUp();
@@ -2050,9 +2475,22 @@ public enum TimePrecision {
 **`getTestedVersion`**
 
 ```java
-
     public final int getTestedVersion() {
         return testVersion;
+    }
+```
+
+**`setUp`**
+
+```java
+    void setUp() throws Exception {
+        setupServer();
+
+        Map<String, Object> props = sshd.getProperties();
+        Object forced = props.remove(SftpModuleProperties.SFTP_VERSION.getName());
+        if (forced != null) {
+            outputDebugMessage("Removed forced version=%s", forced);
+        }
     }
 ```
 
@@ -2126,6 +2564,59 @@ public enum TimePrecision {
     }
 ```
 
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`exec`**
+
+```java
+    private String exec(final File workDir, final String... args) throws Exception {
+        // System.out.print(workDir + ": ");
+        // Stream.of(args).forEach(e -> System.out.print(e + " "));
+        // System.out.println();
+        final ProcessBuilder pb = new ProcessBuilder(args);
+        pb.directory(workDir);
+        pb.redirectErrorStream(true);
+        final Process proc = pb.start();
+        try (BufferedInputStream is = new BufferedInputStream(proc.getInputStream())) {
+            final byte[] buff = new byte[2048];
+            int len;
+
+            final StringBuilder sb = new StringBuilder();
+            while ((len = is.read(buff)) != -1) {
+                sb.append(new String(buff, 0, len));
+            }
+            final String output = sb.toString();
+            assertEquals(0, proc.waitFor(), output);
+            return output;
+        }
+    }
+```
+
+**`getAppJava`**
+
+```java
+    private String getAppJava() {
+        return getJavaHomeApp("java");
+    }
+```
+
+**`getJavaHomeApp`**
+
+```java
+    private String getJavaHomeApp(final String app) {
+        final Path path = getJavaHomeBinPath().resolve(app);
+        if (Files.exists(path)) {
+            return path.toAbsolutePath().toString();
+        }
+        if (SystemUtils.IS_OS_WINDOWS && Files.exists(getJavaHomeBinPath().resolve(app + ".exe"))) {
+            return path.toAbsolutePath().toString();
+        }
+        return app;
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -2190,8 +2681,20 @@ public enum AggregatorMergeStrategy
 **`mergeWithStrategy`**
 
 ```java
-        mergeWithStrategy(analysis1NullProjection, analysis2NullProjection, aggregatorMergeStrategy).getProjections()
-    );
+  private static SegmentAnalysis mergeWithStrategy(
+      SegmentAnalysis analysis1,
+      SegmentAnalysis analysis2,
+      AggregatorMergeStrategy strategy
+  )
+  {
+    return SegmentMetadataQueryQueryToolChest.finalizeAnalysis(
+        SegmentMetadataQueryQueryToolChest.mergeAnalyses(
+            TEST_DATASOURCE.getTableNames(),
+            analysis1,
+            analysis2,
+            strategy
+        ));
+  }
 ```
 
 ### To classify
@@ -2233,6 +2736,19 @@ public enum AggregatorMergeStrategy
             Assertions.assertTrue(contentRef.get().closed);
         }
     }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getContent`**
+
+```java
+@Override
+        public synchronized InputStream getContent() throws IOException {
+            return content;
+        }
 ```
 
 ### To classify
@@ -2337,6 +2853,20 @@ public enum AggregatorMergeStrategy
     }
 ```
 
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`assertUnmodifiable`**
+
+```java
+        void assertUnmodifiable(final Map<String, Customer> map) {
+            assertThrows(Exception.class, ()->{
+                map.put("John", new Customer("John"));
+            });
+        }
+```
+
 ### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
@@ -2362,7 +2892,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `generateTimestamps`
 
 ```java
-
   private static Stream<String> generateTimestamps() {
     return Stream.concat(Stream.generate(new Supplier<String>() {
       int i = 0;
@@ -2407,6 +2936,139 @@ public enum AggregatorMergeStrategy
     .filter(s -> !s.startsWith("1582-10"))
     .limit(3000), Stream.of("9999-12-31 23:59:59.999"));
   }
+```
+
+### Test-side helpers called by this test (4)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`writeHive2`**
+
+```java
+  private static NanoTime writeHive2(String str) {
+    java.sql.Timestamp ts = toTimestampHive2(str);
+    Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of("GMT")));
+    calendar.setTime(ts);
+    int year = calendar.get(Calendar.YEAR);
+    if (calendar.get(Calendar.ERA) == GregorianCalendar.BC) {
+      year = 1 - year;
+    }
+    JulianDate jDateTime = JulianDate.of(year, calendar.get(Calendar.MONTH) + 1,  //java calendar index starting at 1.
+        calendar.get(Calendar.DAY_OF_MONTH), 0, 0, 0, 0);
+    int days = jDateTime.getJulianDayNumber();
+
+    long hour = calendar.get(Calendar.HOUR_OF_DAY);
+    long minute = calendar.get(Calendar.MINUTE);
+    long second = calendar.get(Calendar.SECOND);
+    long nanos = ts.getNanos();
+    long nanosOfDay = nanos + NANOS_PER_SECOND * second + NANOS_PER_MINUTE * minute + NANOS_PER_HOUR * hour;
+
+    return new NanoTime(days, nanosOfDay);
+  }
+```
+
+**`readHive2`**
+
+```java
+  private static java.sql.Timestamp readHive2(NanoTime nt) {
+    //Current Hive parquet timestamp implementation stores it in UTC, but other components do not do that.
+    //If this file written by current Hive implementation itself, we need to do the reverse conversion, else skip the conversion.
+    int julianDay = nt.getJulianDay();
+    long nanosOfDay = nt.getTimeOfDayNanos();
+
+    long remainder = nanosOfDay;
+    julianDay += remainder / NANOS_PER_DAY;
+    remainder %= NANOS_PER_DAY;
+    if (remainder < 0) {
+      remainder += NANOS_PER_DAY;
+      julianDay--;
+    }
+
+    JulianDate jDateTime = JulianDate.of((double) julianDay);
+    Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone(ZoneId.of("GMT")));
+    calendar.set(Calendar.YEAR, jDateTime.toLocalDateTime().getYear());
+    calendar.set(Calendar.MONTH, jDateTime.toLocalDateTime().getMonthValue() - 1); //java calendar index starting at 1.
+    calendar.set(Calendar.DAY_OF_MONTH, jDateTime.toLocalDateTime().getDayOfMonth());
+
+    int hour = (int) (remainder / (NANOS_PER_HOUR));
+    remainder = remainder % (NANOS_PER_HOUR);
+    int minutes = (int) (remainder / (NANOS_PER_MINUTE));
+    remainder = remainder % (NANOS_PER_MINUTE);
+    int seconds = (int) (remainder / (NANOS_PER_SECOND));
+    long nanos = remainder % NANOS_PER_SECOND;
+
+    calendar.set(Calendar.HOUR_OF_DAY, hour);
+    calendar.set(Calendar.MINUTE, minutes);
+    calendar.set(Calendar.SECOND, seconds);
+    java.sql.Timestamp ts = new java.sql.Timestamp(calendar.getTimeInMillis());
+    ts.setNanos((int) nanos);
+    return ts;
+  }
+```
+
+**`toTimestampHive2`**
+
+```java
+  private static java.sql.Timestamp toTimestampHive2(String s) {
+    java.sql.Timestamp result;
+    s = s.trim();
+
+    // Throw away extra if more than 9 decimal places
+    int periodIdx = s.indexOf(".");
+    if (periodIdx != -1) {
+      if (s.length() - periodIdx > 9) {
+        s = s.substring(0, periodIdx + 10);
+      }
+    }
+    if (s.indexOf(' ') < 0) {
+      s = s.concat(" 00:00:00");
+    }
+    try {
+      result = java.sql.Timestamp.valueOf(s);
+    } catch (IllegalArgumentException e) {
+      result = null;
+    }
+    return result;
+  }
+```
+
+**`get`**
+
+```java
+@Override
+      public String get() {
+        StringBuilder sb = new StringBuilder(29);
+        int year = (i % 9999) + 1;
+        sb.append(zeros(4 - digits(year)));
+        sb.append(year);
+        sb.append('-');
+        int month = (i % 12) + 1;
+        sb.append(zeros(2 - digits(month)));
+        sb.append(month);
+        sb.append('-');
+        int day = (i % 28) + 1;
+        sb.append(zeros(2 - digits(day)));
+        sb.append(day);
+        sb.append(' ');
+        int hour = i % 24;
+        sb.append(zeros(2 - digits(hour)));
+        sb.append(hour);
+        sb.append(':');
+        int minute = i % 60;
+        sb.append(zeros(2 - digits(minute)));
+        sb.append(minute);
+        sb.append(':');
+        int second = i % 60;
+        sb.append(zeros(2 - digits(second)));
+        sb.append(second);
+        sb.append('.');
+        // Bitwise OR with one to avoid times with trailing zeros
+        int nano = (i % 1000000000) | 1;
+        sb.append(zeros(9 - digits(nano)));
+        sb.append(nano);
+        i++;
+        return sb.toString();
+      }
 ```
 
 ### To classify
@@ -2460,7 +3122,6 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `testInvalidSnapshotArgs`
 
 ```java
-
   List<Arguments> testInvalidSnapshotArgs() {
     List<Arguments> arguments = testReclaimableFilterArguments();
     return arguments.stream().flatMap(args -> IntStream.range(0, (int) args.get()[1])
@@ -2494,7 +3155,6 @@ public enum AggregatorMergeStrategy
 **`testSnapshotInitAndLocking`**
 
 ```java
-
   private void testSnapshotInitAndLocking(
       String volume, String bucket, int numberOfPreviousSnapshotsFromChain, int index, SnapshotInfo currentSnapshotInfo,
       Boolean reclaimable, Boolean expectedReturnValue) throws IOException {
@@ -2882,7 +3542,6 @@ public enum NativeSeedType {
 **`init`**
 
 ```java
-
     public void init(
             X509KeyType caKeyType, X509KeyType certKeyType, String keyPassword, Integer paramIndex)
             throws Exception {
@@ -3167,7 +3826,41 @@ public enum NativeSeedType {
 **`createWriteTask`**
 
 ```java
-            createWriteTask(row, c, table, timeout, useConditionalWriter).call();
+  private static Callable<Void> createWriteTask(int row, AccumuloClient c, String table,
+      long timeout, boolean useConditionalWriter) {
+    return () -> {
+      if (useConditionalWriter) {
+        ConditionalWriterConfig cwc =
+            new ConditionalWriterConfig().setTimeout(timeout, TimeUnit.MILLISECONDS);
+        try (ConditionalWriter writer = c.createConditionalWriter(table, cwc)) {
+          ConditionalMutation m = new ConditionalMutation("r" + row);
+          m.addCondition(new Condition("f1", "q1"));
+          m.put("f1", "q1", new Value("v1"));
+          ConditionalWriter.Result result = writer.write(m);
+          var status = result.getStatus();
+          assertTrue(status == ConditionalWriter.Status.ACCEPTED
+              || status == ConditionalWriter.Status.UNKNOWN);
+        }
+      } else {
+        BatchWriterConfig bwc = new BatchWriterConfig().setTimeout(timeout, TimeUnit.MILLISECONDS);
+        try (BatchWriter writer = c.createBatchWriter(table, bwc)) {
+          Mutation m = new Mutation("r" + row);
+          m.put("f1", "q1", new Value("v1"));
+          writer.addMutation(m);
+        }
+      }
+      // Relying on the internal retries of the batch writer, trying to create a situation where
+      // some of the writes from above actually happen after the delete below which would negate the
+      // delete.
+
+      try (BatchWriter writer = c.createBatchWriter(table)) {
+        Mutation m = new Mutation("r" + row);
+        m.putDelete("f1", "q1");
+        writer.addMutation(m);
+      }
+      return null;
+    };
+  }
 ```
 
 ### To classify
@@ -3195,6 +3888,30 @@ public enum NativeSeedType {
         } finally {
             Biff8EncryptionKey.setCurrentUserPassword(null);
         }
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`simpleTest`**
+
+```java
+@ParameterizedTest
+    @CsvSource({
+        "15228.xls", "13796.xls", "14460.xls", "14330-1.xls", "14330-2.xls", "12561-1.xls", "12561-2.xls",
+        "12843-1.xls", "12843-2.xls", "13224.xls", "19599-1.xls", "19599-2.xls", "32822.xls", "15573.xls",
+        "33082.xls", "34775.xls", "37630.xls", "25183.xls", "26100.xls", "27933.xls", "29675.xls", "29982.xls",
+        "31749.xls", "37376.xls", "SimpleWithAutofilter.xls", "44201.xls", "37684-1.xls", "37684-2.xls",
+        "41139.xls", "ex42564-21435.xls", "ex42564-21503.xls", "28774.xls", "44891.xls", "44235.xls", "36947.xls",
+        "39634.xls", "47701.xls", "48026.xls", "47251.xls", "47251_1.xls", "50020.xls", "50426.xls", "50779_1.xls",
+        "50779_2.xls", "51670.xls", "54016.xls", "57456.xls", "53109.xls", "com.aida-tour.www_SPO_files_maldives%20august%20october.xls",
+        "named-cell-in-formula-test.xls", "named-cell-test.xls", "bug55505.xls", "chinese-provinces.xls",
+        "SUBSTITUTE.xls", "64261.xls"
+    })
+    void simpleTest(String fileName) throws IOException {
+        simpleTest(fileName, null);
     }
 ```
 
@@ -3233,7 +3950,6 @@ public enum NativeSeedType {
 ### Parameter provider — 同文件内的 `engines`
 
 ```java
-
    public static List<JexlBuilder> engines() {
        final JexlFeatures f = new JexlFeatures();
        f.lexical(true).lexicalShade(true);
@@ -3242,6 +3958,29 @@ public enum NativeSeedType {
               new JexlBuilder().features(f).silent(false).cache(128).strict(true),
               new JexlBuilder().silent(false).cache(128).strict(true));
    }
+```
+
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`init`**
+
+```java
+    private void init(final JexlBuilder builder) {
+        BUILDER = builder;
+        ENGINE = BUILDER.create();
+        JXLT = ENGINE.createJxltEngine();
+    }
+```
+
+**`toString`**
+
+```java
+@Override
+        public String toString() {
+            return out.toString();
+        }
 ```
 
 ### To classify
@@ -3291,6 +4030,21 @@ public enum NativeSeedType {
     }
 ```
 
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`open`**
+
+```java
+    private static HSLFSlideShow open(String fileName) throws IOException {
+        File sample = HSLFTestDataSamples.getSampleFile(fileName);
+        // Note: don't change the code here, it is required for Eclipse to compile the code
+        SlideShow<?,?> slideShowOrig = SlideShowFactory.create(sample, null, false);
+        return (HSLFSlideShow)slideShowOrig;
+    }
+```
+
 ### To classify
 
 `equivalence_class` / `semantic_role`
@@ -3320,6 +4074,40 @@ public enum NativeSeedType {
         assertEquals(LegacyOperation.ACCESS, rule.getOperation(), "Rule has unexpected operation");
         assertEquals(ObjectType.VIRTUALHOST, rule.getObjectType(), "Rule has unexpected object type");
         assertEquals(EMPTY, rule.getPredicates(), "Rule has unexpected predicates");
+    }
+```
+
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`writeACLConfig`**
+
+```java
+    private RuleSet writeACLConfig(final String... aclData)
+    {
+        try
+        {
+            final File acl = File.createTempFile(getClass().getName() + getTestName(), "acl");
+            acl.deleteOnExit();
+
+            // Write ACL file
+            try (final PrintWriter aclWriter = new PrintWriter(new FileWriter(acl)))
+            {
+                Arrays.stream(aclData).forEach(aclWriter::println);
+            }
+
+            // Load ruleset
+            return AclFileParser.parse(acl.toURI().toURL().toString(), mock(EventLoggerProvider.class));
+        }
+        catch (IllegalConfigurationException e)
+        {
+            throw e;
+        }
+        catch (Exception e)
+        {
+           throw new RuntimeException(e);
+        }
     }
 ```
 
@@ -3407,6 +4195,74 @@ public enum NativeSeedType {
             LOG.info("Deleting test");
             store.deleteBlob("test", who);
             assertStoreHasExactly(store);
+        }
+    }
+```
+
+### Test-side helpers called by this test (5)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`initHdfs`**
+
+```java
+    private AutoCloseableBlobStoreContainer initHdfs(String dirName) {
+        Map<String, Object> conf = new HashMap<>();
+        conf.put(Config.BLOBSTORE_DIR, dirName);
+        conf.put(Config.STORM_PRINCIPAL_TO_LOCAL_PLUGIN, "org.apache.storm.security.auth.DefaultPrincipalToLocal");
+        conf.put(Config.STORM_BLOBSTORE_REPLICATION_FACTOR, 3);
+        HdfsBlobStore store = new HdfsBlobStore();
+        store.prepareInternal(conf, null, DFS_CLUSTER_EXTENSION.getDfscluster().getConfiguration(0));
+        return new AutoCloseableBlobStoreContainer(store);
+    }
+```
+
+**`getSubject`**
+
+```java
+    public static Subject getSubject(String name) {
+        Subject subject = new Subject();
+        SingleUserPrincipal user = new SingleUserPrincipal(name);
+        subject.getPrincipals().add(user);
+        return subject;
+    }
+```
+
+**`assertStoreHasExactly`**
+
+```java
+    public static void assertStoreHasExactly(BlobStore store, Subject who, String... keys) {
+        Set<String> expected = new HashSet<>(Arrays.asList(keys));
+        Set<String> found = new HashSet<>();
+        Iterator<String> c = store.listKeys();
+        while (c.hasNext()) {
+            String keyName = c.next();
+            found.add(keyName);
+        }
+        Set<String> extra = new HashSet<>(found);
+        extra.removeAll(expected);
+        assertTrue(extra.isEmpty(), "Found extra keys in the blob store " + extra);
+        Set<String> missing = new HashSet<>(expected);
+        missing.removeAll(found);
+        assertTrue(missing.isEmpty(), "Found keys missing from the blob store " + missing);
+    }
+```
+
+**`readAssertEqualsWithAuth`**
+
+```java
+    public void readAssertEqualsWithAuth(BlobStore store, Subject who, String key, int value)
+        throws IOException, KeyNotFoundException, AuthorizationException {
+        assertEquals(value, readInt(store, who, key));
+    }
+```
+
+**`readInt`**
+
+```java
+    public static int readInt(BlobStore store, Subject who, String key) throws IOException, KeyNotFoundException, AuthorizationException {
+        try (InputStream in = store.getBlob(key, who)) {
+            return in.read();
         }
     }
 ```
@@ -3559,7 +4415,6 @@ public enum NativeSeedType {
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-
     public static Stream<Arguments> data()
     {
         return Stream.of( new Object[][]
@@ -3719,7 +4574,8 @@ public enum NativeSeedType {
                     Data.data().valueEditorClass( TextValueEditor.class ).attribute( CN ).rawValue( ASCII )
                         .expectedRawValue( ASCII ).expectedDisplayValue( ASCII ).expectedHasValue( true )
                         .expectedStringOrBinaryValue( ASCII ) },
-    // … 省略 106 行
+
+    // … 省略 105 行
 ```
 
 ### Test-side helpers called by this test (1)
@@ -3729,7 +4585,6 @@ public enum NativeSeedType {
 **`setup`**
 
 ```java
-
     public void setup( String name, Data data ) throws Exception
     {
         IEntry entry = new DummyEntry( new Dn(), new DummyConnection( Schema.DEFAULT_SCHEMA ) );
@@ -3766,6 +4621,49 @@ public enum NativeSeedType {
 
     assertThatFileExists(CONTAINER_NAME, "artists3.csv");
     assertThatFileDoesNotExist("fakecontainer", "artists3.csv");
+  }
+```
+
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getFilePath`**
+
+```java
+  private String getFilePath(String filename) {
+    return basePath + CONTAINER_NAME + "/" + filename;
+  }
+```
+
+**`assertThatFileExists`**
+
+```java
+  private void assertThatFileExists(String containerName, String blobName) {
+    // Get a BlobClient object which represents a blob in the container
+    BlobClient blobClient =
+        blobServiceClient.getBlobContainerClient(containerName).getBlobClient(blobName);
+
+    // Get the properties of the blob
+    var blobProperties = blobClient.getProperties();
+
+    // Get the size of the blob
+    long blobSize = blobProperties.getBlobSize();
+
+    assertEquals(true, blobClient.exists());
+    assertTrue(blobSize >= 140);
+  }
+```
+
+**`assertThatFileDoesNotExist`**
+
+```java
+  private void assertThatFileDoesNotExist(String containerName, String blobName) {
+    // Get a BlobClient object which represents a blob in the container
+    BlobClient blobClient =
+        blobServiceClient.getBlobContainerClient(containerName).getBlobClient(blobName);
+
+    assertEquals(false, blobClient.exists());
   }
 ```
 
@@ -3957,7 +4855,6 @@ public enum HoodieTableVersion {
 **`getHoodieWriteConfigAndInitializeTable`**
 
 ```java
-
   private HoodieWriteConfig getHoodieWriteConfigAndInitializeTable(HoodieCompactionConfig compactionConfig, HoodieTableVersion tableVersion) throws IOException {
     return getHoodieWriteConfigAndInitializeTable(compactionConfig, HoodieClusteringConfig.newBuilder().build(), tableVersion);
   }
@@ -3966,13 +4863,23 @@ public enum HoodieTableVersion {
 **`validateFilesMetadata`**
 
 ```java
-    validateFilesMetadata(hoodieWriteConfig);
+  private void validateFilesMetadata(HoodieWriteConfig writeConfig) {
+    HoodieTableFileSystemView fileListingBasedView = FileSystemViewManager.createInMemoryFileSystemView(context, metaClient,
+        HoodieMetadataConfig.newBuilder().enable(false).build());
+    FileSystemViewStorageConfig viewStorageConfig = FileSystemViewStorageConfig.newBuilder().fromProperties(writeConfig.getProps())
+        .withStorageType(FileSystemViewStorageType.MEMORY).build();
+    HoodieTableFileSystemView metadataBasedView = (HoodieTableFileSystemView) FileSystemViewManager
+        .createViewManager(context, writeConfig.getMetadataConfig(), viewStorageConfig, writeConfig.getCommonConfig(),
+            (SerializableFunctionUnchecked<HoodieTableMetaClient, HoodieTableMetadata>) v1 ->
+                metaClient.getTableFormat().getMetadataFactory().create(context, metaClient.getStorage(), writeConfig.getMetadataConfig(), writeConfig.getBasePath()))
+        .getFileSystemView(basePath);
+    assertForFSVEquality(fileListingBasedView, metadataBasedView, true, Option.empty());
+  }
 ```
 
 **`getRecordCountPerCommit`**
 
 ```java
-
   private Map<String, Integer> getRecordCountPerCommit() {
     Dataset<Row> dataset = sparkSession.read().format("hudi").load(basePath);
     List<Row> rows = dataset.collectAsList();

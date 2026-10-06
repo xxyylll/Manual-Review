@@ -47,15 +47,18 @@ Two steps, in order:
    **This branching may live in a helper the test calls, not only in the test body** —
    the helpers your packet shows under *Test-side helpers* are part of the test side, so
    check them too.
-2. **If yes — does that branching further change the tested assertion?** Only then is it
-   `different`.
+2. **If yes — does that branching cause a different assertion, or a different assertion
+   *structure*, to be executed?** Only then is it `different`.
 
-- **`different`** — the branch changes the assertion made, the expected outcome, or the
-  oracle used.
+- **`different`** — the branch changes which assertion runs, what it asserts against, or
+  how the assertions are arranged: a different assertion method (`assertEquals` vs
+  `assertThrows`), a different expected outcome computed inside the branch, or a
+  different set or number of assertions along each path.
 - **`same`** — everything else. This includes branching that only varies *setup* or
-  *arrangement* and then runs one common action with one common assertion. It also
-  includes different inputs, different expected values passed in as parameters, different
-  configurations, and success-vs-failure cases, as long as one assertion path handles them.
+  *arrangement* and then converges on one common action and one common assertion
+  structure. It also includes different inputs, different expected values passed in as
+  parameters, different configurations, and success-vs-failure cases, as long as a single
+  assertion structure handles them.
 
 ```java
 // same — one assertion path; the expected value is just another parameter
@@ -70,6 +73,10 @@ assertTrue(client.connect(c).isOpen());
 // different — the branch selects which assertion runs
 if (expectedValid) assertTrue(result.isValid());
 else               assertThrows(IllegalArgumentException.class, ...);
+
+// different — same assertion method, but a different assertion structure per path
+if (hasProjection) { assertEquals(2, out.size()); assertNotNull(out.get(1)); }
+else               { assertNull(out); }
 ```
 
 Production code behaving differently per parameter does **not** by itself make this
