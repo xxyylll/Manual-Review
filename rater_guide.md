@@ -13,13 +13,12 @@ ambiguous, mark it `unclear` and say why in one line — that is a useful result
 failure. Please do not look up how the project itself describes the test, and please do
 not confer with the other raters.
 
-**Time.** Roughly 2–4 minutes per case.
 
 ---
 
 ## How to record your answers
 
-Fill in `packet_R*.csv` — one row per item, matched by `item_id`. Leave a column blank
+Fill in `[name].csv` — one row per item, matched by `item_id`. Leave a column blank
 when it does not apply to that source (the table below says which apply).
 
 | Column | Applies to | Allowed values |
@@ -27,10 +26,11 @@ when it does not apply to that source (the table below says which apply).
 | `equivalence_class` | all | `same` / `different` / `unclear` |
 | `semantic_role` | Method, Value, Csv | `general` / `file-resource` / `external-language` / `unclear` |
 | `methodsource_intent` | Method | `type` / `value` / `both` / `unclear` |
+| `type_complexity` | Method | `project` / `jdk` / `third-party`, joined with `+` if several; `n/a` / `unclear` |
 | `value_complexity` | Method | `code-derived` / `externally-sourced` / `n/a` / `unclear` |
 | `behavior_carrying` | Method, Enum | `yes` / `no` / `unclear` |
-| `enum_representation` | Enum | `label` / `data-carrying` / `unclear` |
-| `enum_exploitation` | Enum | `shared-contract` / `semantic-specific` / `unclear` |
+| `enum_structure` | Enum | `label` / `data-carrying` / `unclear` |
+| `enum_usage_intent` | Enum | `shared-contract` / `semantic-specific` / `unclear` |
 | `confidence` | all | `high` / `medium` / `low` |
 | `notes` | all | free text, only when useful |
 
@@ -131,7 +131,38 @@ automatically `value` — look at what the helper actually does. A provider that
 `Arguments.of(new Foo(1), new Foo(2))` is `type`, not `value`: the values are written out,
 only the type is complex.
 
-### 3b. `value_complexity` — only when you answered `value` or `both`
+### 3b. `type_complexity` — only when you answered `type` or `both`
+
+**Question: where do the non-trivial parameter types come from?**
+
+Look at the provider's return type and at the test method's parameter declarations. List
+every origin that the *complex* types come from — plain primitives and `String` are not an
+origin, they are just ordinary co-parameters.
+
+- **`project`** — a type defined by the project under test, whether in its production code
+  or in its test code.
+- **`jdk`** — a type from the Java standard library: `File`, `Path`, `Duration`, `Stream`,
+  `Function`, collections, `Class`, and so on.
+- **`third-party`** — a type from an external library the project depends on (Avro, Calcite,
+  Guava, Mockito, AWS SDK, …).
+
+If several origins appear, join them with `+` in any order — `project+jdk`. Most cases have
+exactly one.
+
+```java
+// project          — SegmentAnalysis is defined by the project
+Stream.of(Arguments.of(new SegmentAnalysis(...), 3))
+
+// jdk              — Path and Duration are both JDK types
+Stream.of(Arguments.of(Paths.get("a.txt"), Duration.ofSeconds(1)))
+
+// project+jdk      — one of each (the int is a primitive and does not count)
+Stream.of(Arguments.of(new HoodieConfig(...), StandardCharsets.UTF_8, 3))
+```
+
+Answer `n/a` when you classified the item as `value` only.
+
+### 3c. `value_complexity` — only when you answered `value` or `both`
 
 - **`code-derived`** — values come from program logic: loops, streams, combinations,
   arithmetic, helper generation.
@@ -140,7 +171,7 @@ only the type is complex.
 
 Otherwise `n/a`.
 
-### 3c. `behavior_carrying`
+### 3d. `behavior_carrying`
 
 **Question: is the parameter supplying behaviour to execute, or describing the
 circumstances under which fixed behaviour executes?**
@@ -171,7 +202,7 @@ action under test. A lambda that merely materialises a data value during setup i
 
 ## 4. EnumSource only
 
-### 4a. `enum_representation` — look at the enum **declaration** (included in your packet)
+### 4a. `enum_structure` — look at the enum **declaration** (included in your packet)
 
 - **`label`** — the constants are symbolic names: categories, modes, states, flags.
 - **`data-carrying`** — the constants carry meaningful per-constant data, via constructor
@@ -188,7 +219,7 @@ enum Case {                                          // data-carrying
 
 Inherited `name()` and `ordinal()` do **not** make an enum data-carrying.
 
-### 4b. `enum_exploitation` — look at the **test side**
+### 4b. `enum_usage_intent` — look at the **test side**
 
 **Question: does the test side treat the enum constants differently?**
 
@@ -203,7 +234,7 @@ Production code that behaves differently per constant does **not** make this
 `semantic-specific`. The differentiation has to be on the test side.
 
 > **How this relates to `equivalence_class`.** They are two steps of the same enquiry, so
-> answer `enum_exploitation` first:
+> answer `enum_usage_intent` first:
 >
 > - no test-side differentiation → `shared-contract`, and `equivalence_class` is `same`.
 > - differentiation exists → `semantic-specific`; then ask whether that differentiation
@@ -214,7 +245,7 @@ Production code that behaves differently per constant does **not** make this
 
 ### 4c. `behavior_carrying`
 
-Same rule as 3c. An enum is `yes` only when it supplies executable behaviour that is
+Same rule as 3d. An enum is `yes` only when it supplies executable behaviour that is
 itself exercised — typically constant-specific method bodies that the test invokes
 directly.
 
