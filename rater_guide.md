@@ -1,0 +1,208 @@
+# Rating Guide — Parameterized Test Usage Intent
+
+Thank you for helping validate this codebook.
+
+You will classify **60 JUnit 5 parameterized tests**. All the code you need is in your
+packet (`packet_R*.md`) — you do not need to download or build any project.
+
+**What we are measuring.** We want to know whether this codebook is reproducible by
+someone other than its author. We are *not* testing you. If a case is genuinely
+ambiguous, mark it `unclear` and say why in one line — that is a useful result, not a
+failure. Please do not look up how the project itself describes the test, and please do
+not confer with the other raters.
+
+**Time.** Roughly 2–4 minutes per case.
+
+---
+
+## How to record your answers
+
+Fill in `packet_R*.csv` — one row per item, matched by `item_id`. Leave a column blank
+when it does not apply to that source (the table below says which apply).
+
+| Column | Applies to | Allowed values |
+|---|---|---|
+| `equivalence_class` | all | `same` / `different` / `unclear` |
+| `semantic_role` | Method, Value, Csv | `general` / `file-resource` / `external-language` / `unclear` |
+| `methodsource_intent` | Method | `type` / `value` / `both` / `unclear` |
+| `value_complexity` | Method | `code-derived` / `externally-sourced` / `n/a` / `unclear` |
+| `behavior_carrying` | Method, Enum | `yes` / `no` / `unclear` |
+| `enum_representation` | Enum | `label` / `data-carrying` / `unclear` |
+| `enum_exploitation` | Enum | `shared-contract` / `semantic-specific` / `unclear` |
+| `confidence` | all | `high` / `medium` / `low` |
+| `notes` | all | free text, only when useful |
+
+---
+
+## 1. `equivalence_class` — all sources
+
+**Question: does the parameter value cause the *test body* to run different testing
+logic?**
+
+- **`same`** — every parameter set goes through the same test logic. Different inputs,
+  different expected values, different expected exceptions, different configurations,
+  and even success-vs-failure cases are all still `same`, as long as one code path
+  handles them.
+- **`different`** — the test body branches on the parameter (`if/else`, `switch`, or
+  equivalent) and the branch changes **the action performed, the assertion made, or the
+  oracle used**.
+
+```java
+// same — one path, the expected value is just another parameter
+void validate(String input, boolean expected) {
+    assertEquals(expected, isValid(input));
+}
+
+// different — the parameter selects which assertion runs
+if (expectedValid) assertTrue(result.isValid());
+else               assertThrows(IllegalArgumentException.class, ...);
+```
+
+A branch that only varies *setup* and then runs one common action is `same`.
+
+---
+
+## 2. `semantic_role` — MethodSource, ValueSource, CsvSource
+
+**Question: what does the parameter value *represent*?** Judge by its role in the test,
+not its Java type — `int`, `String`, `boolean` are all irrelevant here.
+
+Apply in order; first match wins.
+
+1. **`external-language`** — the value is syntax of another language that is parsed,
+   compiled, matched, evaluated, or executed by grammar rules, **or** it is configuration
+   written in a recognised configuration language.
+   Examples: SQL, regular expressions, XPath, JSONPath, expression languages, JSON, XML,
+   XSD, DSLs.
+   *Not* this category: a URL or URI (it has a format but no execution semantics); a
+   project-specific binary format; a plain string that merely gets matched against.
+
+2. **`file-resource`** — the value is an address or identifier used to locate something
+   that already exists: a file, resource, classpath entry, class name, directory, or URL.
+   The string carries no internal logic; it is a pointer.
+
+3. **`general`** — anything else. Ordinary data being processed or compared: inputs,
+   expected results, modes, options, configuration switches, version strings, format
+   strings.
+
+Watch the distinction: **`config.json` is `file-resource`** (a filename), while
+**`{"enabled": true}` is `external-language`** (the content itself).
+
+---
+
+## 3. MethodSource only
+
+### 3a. `methodsource_intent` — why is a method needed at all?
+
+Every item you receive genuinely needs `@MethodSource`; your job is to say **why**.
+
+- **`type`** — because the parameter uses a Java type that inline annotations cannot
+  express: arrays, collections, custom objects, parsers, strategies, functions, complex
+  configuration objects.
+- **`value`** — because the values themselves must be generated, transformed, or fetched:
+  loops, stream transformations, combinations, arithmetic generation, data read from
+  files or the environment.
+- **`both`** — both reasons apply independently.
+
+Trace the provider before deciding. A provider that merely calls a helper is not
+automatically `value` — look at what the helper actually does. A provider that lists
+`Arguments.of(new Foo(1), new Foo(2))` is `type`, not `value`: the values are written out,
+only the type is complex.
+
+### 3b. `value_complexity` — only when you answered `value` or `both`
+
+- **`code-derived`** — values come from program logic: loops, streams, combinations,
+  arithmetic, helper generation.
+- **`externally-sourced`** — values come from outside the source code: files, runtime
+  resources, environment data, external fixtures.
+
+Otherwise `n/a`.
+
+### 3c. `behavior_carrying`
+
+**Question: is the parameter supplying behaviour to execute, or describing the
+circumstances under which fixed behaviour executes?**
+
+`yes` requires both: the parameter is **executable**, and the behaviour it supplies is
+**itself part of the tested action**.
+
+```java
+// yes — the parameter IS the thing being exercised
+void test(Parser parser) {
+    assertEquals(expected, parser.parse(input));
+}
+
+// no — the parameter only selects which parser gets built
+void test(ParserType type) {
+    Parser parser = createParser(type);
+    parser.parse(input);
+}
+```
+
+`no` covers: input values, state, configuration, implementation *selectors*, metadata,
+expected outcomes, expected exceptions, failure conditions.
+
+A lambda or functional object counts as `yes` only when it is invoked as part of the
+action under test. A lambda that merely materialises a data value during setup is `no`.
+
+---
+
+## 4. EnumSource only
+
+### 4a. `enum_representation` — look at the enum **declaration** (included in your packet)
+
+- **`label`** — the constants are symbolic names: categories, modes, states, flags.
+- **`data-carrying`** — the constants carry meaningful per-constant data, via constructor
+  arguments or fields that differ between constants.
+
+```java
+enum Format { JSON, XML, CSV }                       // label
+
+enum Case {                                          // data-carrying
+    VALID("abc", true), INVALID("", false);
+    final String input; final boolean expected;
+}
+```
+
+Inherited `name()` and `ordinal()` do **not** make an enum data-carrying.
+
+### 4b. `enum_exploitation` — look at the **test body**
+
+- **`shared-contract`** — the same test logic is applied uniformly across the selected
+  constants; the test asserts a contract that should hold for all of them.
+- **`semantic-specific`** — the test explicitly differentiates between enum values
+  through parameter-dependent logic: `if/else`, `switch`, different assertions, or
+  different actions.
+
+This is about **test-side** differentiation. Production code behaving differently per
+constant does not by itself make this `semantic-specific`.
+
+> This is a different question from `equivalence_class`. A test can branch on the enum
+> (`semantic-specific`) while still exercising one behavioural scenario with one kind of
+> expected outcome (`same`). Answer the two independently.
+
+### 4c. `behavior_carrying`
+
+Same rule as 3c. An enum is `yes` only when it supplies executable behaviour that is
+itself exercised — typically constant-specific method bodies that the test invokes
+directly.
+
+```java
+enum Operation {
+    ADD { int apply(int a, int b) { return a + b; } },
+    SUB { int apply(int a, int b) { return a - b; } }
+}
+```
+`yes` if the test calls `operation.apply(...)`. An enum supplying only labels, expected
+values, configuration, or selectors is `no`.
+
+---
+
+## 5. When to use `unclear`
+
+Use it when the code in your packet does not give you enough evidence — not when the case
+is merely hard. If you can make a defensible call, make it and set `confidence` to
+`medium` or `low` instead.
+
+Please write one line in `notes` for every `unclear`, and for anything where you felt the
+guide did not cover the case. Those notes are the most useful thing you can give us.

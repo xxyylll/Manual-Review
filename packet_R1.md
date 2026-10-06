@@ -1,0 +1,3840 @@
+# 评分包 R1
+
+共 60 条。每条只需判定该 source 适用的维度，判定规则见 `rater_guide.md`。
+把答案填进 `packet_R1.csv`，一行一条；拿不准就填 `unclear` 并在 notes 里写一句原因。
+
+---
+
+## IRR-001  ·  MethodSource
+
+**项目** `Commons-RDF`  **文件** `commons-rdf/commons-rdf-integration-tests/src/test/java/org/apache/commons/rdf/integrationtests/AllToAllTest.java`  **测试** `testAddTermsFromOtherFactory`
+
+### 测试方法
+
+```java
+    @MethodSource("data")
+    @ParameterizedTest(name = "{index}: {0} -> {1}")
+    void testAddTermsFromOtherFactory(final Class<? extends RDF> from, final Class<? extends RDF> to) throws Exception {
+        RDF nodeFactory = from.getConstructor().newInstance();
+        RDF graphFactory = to.newInstance();
+
+        try (final Graph g = graphFactory.createGraph()) {
+            final BlankNode s = nodeFactory.createBlankNode();
+            final IRI p = nodeFactory.createIRI("http://example.com/p");
+            final Literal o = nodeFactory.createLiteral("Hello");
+
+            g.add(s, p, o);
+
+            // blankNode should still work with g.contains()
+            assertTrue(g.contains(s, p, o));
+            final Triple t1 = g.stream().findAny().get();
+
+            // Can't make assumptions about BlankNode equality - it might
+            // have been mapped to a different BlankNode.uniqueReference()
+            // assertEquals(s, t.getSubject());
+
+            assertEquals(p, t1.getPredicate());
+            assertEquals(o, t1.getObject());
+
+            final IRI s2 = nodeFactory.createIRI("http://example.com/s2");
+            g.add(s2, p, s);
+            assertTrue(g.contains(s2, p, s));
+
+            // This should be mapped to the same BlankNode
+            // (even if it has a different identifier), e.g.
+            // we should be able to do:
+
+            final Triple t2 = g.stream(s2, p, null).findAny().get();
+
+            final BlankNode bnode = (BlankNode) t2.getObject();
+            // And that (possibly adapted) BlankNode object should
+            // match the subject of t1 statement
+            assertEquals(bnode, t1.getSubject());
+            // And can be used as a key:
+            final Triple t3 = g.stream(bnode, p, null).findAny().get();
+            assertEquals(t1, t3);
+        }
+    }
+```
+
+### Parameter provider — 同文件内的 `data`
+
+```java
+    @SuppressWarnings("rawtypes")
+    public static Collection<Object[]> data() {
+        final List<Class> factories = Arrays.asList(SimpleRDF.class, JenaRDF.class, RDF4J.class, JsonLdRDF.class);
+        final Collection<Object[]> allToAll = new ArrayList<>();
+        for (final Class from : factories) {
+            for (final Class to : factories) {
+                // NOTE: we deliberately include self-to-self here
+                // to test two instances of the same implementation
+                allToAll.add(new Object[] { from, to });
+            }
+        }
+        return allToAll;
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-002  ·  MethodSource
+
+**项目** `POI`  **文件** `poi/poi-ooxml/src/test/java/org/apache/poi/xssf/usermodel/TestFormulaEvaluatorOnXSSF.java`  **测试** `processFunctionRow`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("data")
+    void processFunctionRow(String targetFunctionName, int formulasRowIdx, int expectedValuesRowIdx) {
+        //DOLLAR function returns a string that is locale specific
+        assumeFalse(targetFunctionName.equalsIgnoreCase("DOLLAR"));
+
+        Row formulasRow = sheet.getRow(formulasRowIdx);
+        Row expectedValuesRow = sheet.getRow(expectedValuesRowIdx);
+
+        short endcolnum = formulasRow.getLastCellNum();
+
+        // iterate across the row for all the evaluation cases
+        for (short colnum=SS.COLUMN_INDEX_FIRST_TEST_VALUE; colnum < endcolnum; colnum++) {
+            Cell c = formulasRow.getCell(colnum);
+            assumeTrue(c != null);
+            assumeTrue(c.getCellType() == CellType.FORMULA);
+            ignoredFormulaTestCase(c.getCellFormula());
+
+            CellValue actValue = evaluator.evaluate(c);
+            Cell expValue = (expectedValuesRow == null) ? null : expectedValuesRow.getCell(colnum);
+
+            String msg = String.format(Locale.ROOT, "Function '%s': Formula: %s @ %d:%d"
+                , targetFunctionName, c.getCellFormula(), formulasRow.getRowNum(), colnum);
+
+            assertNotNull(expValue, msg + " - Bad setup data expected value is null");
+            assertNotNull(actValue, msg + " - actual value was null");
+
+            final CellType expectedCellType = expValue.getCellType();
+            switch (expectedCellType) {
+                case BLANK:
+                    assertEquals(CellType.BLANK, actValue.getCellType(), msg);
+                    break;
+                case BOOLEAN:
+                    assertEquals(CellType.BOOLEAN, actValue.getCellType(), msg);
+                    assertEquals(expValue.getBooleanCellValue(), actValue.getBooleanValue(), msg);
+                    break;
+                case ERROR:
+                    assertEquals(CellType.ERROR, actValue.getCellType(), msg);
+//                if(false) { // TODO: fix ~45 functions which are currently returning incorrect error values
+//                    assertEquals(msg, expValue.getErrorCellValue(), actValue.getErrorValue());
+//                }
+                    break;
+                case FORMULA: // will never be used, since we will call method after formula evaluation
+                    fail("Cannot expect formula as result of formula evaluation: " + msg);
+                case NUMERIC:
+                    assertEquals(CellType.NUMERIC, actValue.getCellType(), msg);
+                    final double tolerance = targetFunctionName.equalsIgnoreCase("RATE")
+                            ? 0.000001 : BaseTestNumeric.DIFF_TOLERANCE_FACTOR;
+                    BaseTestNumeric.assertDouble(msg, expValue.getNumericCellValue(), actValue.getNumberValue(), BaseTestNumeric.POS_ZERO, tolerance);
+                    break;
+                case STRING:
+                    assertEquals(CellType.STRING, actValue.getCellType(), msg);
+                    assertEquals(expValue.getRichStringCellValue().getString(), actValue.getStringValue(), msg);
+                    break;
+                default:
+                    fail("Unexpected cell type: " + expectedCellType);
+            }
+        }
+    }
+```
+
+### Parameter provider — 同文件内的 `data`
+
+```java
+
+    public static Stream<Arguments> data() throws Exception {
+        // Function "Text" uses custom-formats which are locale specific
+        // can't set the locale on a per-testrun execution, as some settings have been
+        // already set, when we would try to change the locale by then
+        userLocale = LocaleUtil.getUserLocale();
+        LocaleUtil.setUserLocale(Locale.ROOT);
+
+        workbook = new XSSFWorkbook( OPCPackage.open(HSSFTestDataSamples.getSampleFile(SS.FILENAME), PackageAccess.READ) );
+        sheet = workbook.getSheetAt( 0 );
+        evaluator = new XSSFFormulaEvaluator(workbook);
+
+        List<Arguments> data = new ArrayList<>();
+
+        processFunctionGroup(data, SS.START_OPERATORS_ROW_INDEX, null);
+        processFunctionGroup(data, SS.START_FUNCTIONS_ROW_INDEX, null);
+        // example for debugging individual functions/operators:
+        // processFunctionGroup(data, SS.START_OPERATORS_ROW_INDEX, "ConcatEval");
+        // processFunctionGroup(data, SS.START_FUNCTIONS_ROW_INDEX, "Text");
+
+        return data.stream();
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-003  ·  EnumSource
+
+**项目** `jena`  **文件** `jena/jena-ontapi/src/test/java/org/apache/jena/ontapi/OntClassIndividualsTest.java`  **测试** `testListIndividuals7a`
+
+### 测试方法
+
+```java
+    public void testListIndividuals7a(TestSpec spec) {
+        //  A   B
+        //  .\ /.
+        //  . C .
+        //  . | .
+        //  . D .
+        //  ./  .
+        //  A   .   E
+        //   \  .  |
+        //    \ . /
+        //      B
+
+        OntModel m = createClassesABCDAEB(OntModelFactory.createModel(spec.inst));
+        OntClass A = m.getResource(NS + "A").as(OntClass.class);
+        OntClass B = m.getResource(NS + "B").as(OntClass.class);
+        OntClass C = m.getResource(NS + "C").as(OntClass.class);
+        m.getResource(NS + "D").as(OntClass.class);
+        OntClass E = m.getResource(NS + "E").as(OntClass.class);
+
+        A.createIndividual(NS + "iA");
+        B.createIndividual(NS + "iB");
+        OntIndividual CE = C.createIndividual(NS + "iCE");
+        CE.attachClass(E);
+        OntIndividual DBA = B.createIndividual(NS + "iDBA");
+        DBA.attachClass(B);
+        DBA.attachClass(A);
+
+        Set<String> directA = individuals(m, "A", true);
+        Set<String> indirectA = individuals(m, "A", false);
+
+        Set<String> directB = individuals(m, "B", true);
+        Set<String> indirectB = individuals(m, "B", false);
+
+        Set<String> directC = individuals(m, "C", true);
+        Set<String> indirectC = individuals(m, "C", false);
+
+        Set<String> directD = individuals(m, "D", true);
+        Set<String> indirectD = individuals(m, "D", false);
+
+        Set<String> directE = individuals(m, "E", true);
+        Set<String> indirectE = individuals(m, "E", false);
+
+        Assertions.assertEquals(Set.of("iA"), directA);
+        Assertions.assertEquals(Set.of("iB", "iDBA"), directB);
+        Assertions.assertEquals(Set.of("iCE"), directC);
+        Assertions.assertEquals(Set.of(), directD);
+        Assertions.assertEquals(Set.of("iCE"), directE);
+        Assertions.assertEquals(Set.of("iA", "iDBA"), indirectA);
+        Assertions.assertEquals(Set.of("iB", "iDBA"), indirectB);
+        Assertions.assertEquals(Set.of("iCE"), indirectC);
+        Assertions.assertEquals(Set.of(), indirectD);
+        Assertions.assertEquals(Set.of("iCE"), indirectE);
+    }
+```
+
+### 枚举声明 — `TestSpec`（jena/jena-ontapi/src/test/java/org/apache/jena/ontapi/TestSpec.java）
+
+```java
+public enum TestSpec {
+    OWL2_MEM(OntSpecification.OWL2_FULL_MEM),
+    OWL2_MEM_RDFS_INF(OntSpecification.OWL2_FULL_MEM_RDFS_INF),
+    OWL2_MEM_TRANS_INF(OntSpecification.OWL2_FULL_MEM_TRANS_INF),
+    OWL2_MEM_RULES_INF(OntSpecification.OWL2_FULL_MEM_RULES_INF),
+    OWL2_MEM_MINI_RULES_INF(OntSpecification.OWL2_FULL_MEM_MINI_RULES_INF),
+    OWL2_MEM_MICRO_RULES_INF(OntSpecification.OWL2_FULL_MEM_MICRO_RULES_INF),
+
+    OWL2_DL_MEM_RDFS_BUILTIN_INF(OntSpecification.OWL2_DL_MEM_BUILTIN_RDFS_INF),
+    OWL2_DL_MEM(OntSpecification.OWL2_DL_MEM),
+    OWL2_DL_MEM_RDFS_INF(OntSpecification.OWL2_DL_MEM_RDFS_INF),
+    OWL2_DL_MEM_TRANS_INF(OntSpecification.OWL2_DL_MEM_TRANS_INF),
+    OWL2_DL_MEM_RULES_INF(OntSpecification.OWL2_DL_MEM_RULES_INF),
+
+    OWL2_EL_MEM(OntSpecification.OWL2_EL_MEM),
+    OWL2_EL_MEM_RDFS_INF(OntSpecification.OWL2_EL_MEM_RDFS_INF),
+    OWL2_EL_MEM_TRANS_INF(OntSpecification.OWL2_EL_MEM_TRANS_INF),
+    OWL2_EL_MEM_RULES_INF(OntSpecification.OWL2_EL_MEM_RULES_INF),
+
+    OWL2_QL_MEM(OntSpecification.OWL2_QL_MEM),
+    OWL2_QL_MEM_RDFS_INF(OntSpecification.OWL2_QL_MEM_RDFS_INF),
+    OWL2_QL_MEM_TRANS_INF(OntSpecification.OWL2_QL_MEM_TRANS_INF),
+    OWL2_QL_MEM_RULES_INF(OntSpecification.OWL2_QL_MEM_RULES_INF),
+
+    OWL2_RL_MEM(OntSpecification.OWL2_RL_MEM),
+    OWL2_RL_MEM_RDFS_INF(OntSpecification.OWL2_RL_MEM_RDFS_INF),
+    OWL2_RL_MEM_TRANS_INF(OntSpecification.OWL2_RL_MEM_TRANS_INF),
+    OWL2_RL_MEM_RULES_INF(OntSpecification.OWL2_RL_MEM_RULES_INF),
+
+    OWL1_MEM(OntSpecification.OWL1_FULL_MEM),
+    OWL1_MEM_RDFS_INF(OntSpecification.OWL1_FULL_MEM_RDFS_INF),
+    OWL1_MEM_TRANS_INF(OntSpecification.OWL1_FULL_MEM_TRANS_INF),
+    OWL1_MEM_RULES_INF(OntSpecification.OWL1_FULL_MEM_RULES_INF),
+    OWL1_MEM_MINI_RULES_INF(OntSpecification.OWL1_FULL_MEM_MINI_RULES_INF),
+    OWL1_MEM_MICRO_RULES_INF(OntSpecification.OWL1_FULL_MEM_MICRO_RULES_INF),
+
+    OWL1_DL_MEM(OntSpecification.OWL1_DL_MEM),
+    OWL1_DL_MEM_RDFS_INF(OntSpecification.OWL1_DL_MEM_RDFS_INF),
+    OWL1_DL_MEM_TRANS_INF(OntSpecification.OWL1_DL_MEM_TRANS_INF),
+    OWL1_DL_MEM_RULES_INF(OntSpecification.OWL1_DL_MEM_RULES_INF),
+
+    OWL1_LITE_MEM(OntSpecification.OWL1_LITE_MEM),
+    OWL1_LITE_MEM_RDFS_INF(OntSpecification.OWL1_LITE_MEM_RDFS_INF),
+    OWL1_LITE_MEM_TRANS_INF(OntSpecification.OWL1_LITE_MEM_TRANS_INF),
+    OWL1_LITE_MEM_RULES_INF(OntSpecification.OWL1_LITE_MEM_RULES_INF),
+
+    RDFS_MEM(OntSpecification.RDFS_MEM),
+    RDFS_MEM_RDFS_INF(OntSpecification.RDFS_MEM_RDFS_INF),
+    RDFS_MEM_TRANS_INF(OntSpecification.RDFS_MEM_TRANS_INF),
+    ;
+    public final OntSpecification inst;
+
+    TestSpec(OntSpecification inst) {
+        this.inst = inst;
+    }
+
+    boolean isOWL1() {
+        return name().startsWith("OWL1");
+    }
+
+    boolean isOWL1Lite() {
+        return name().startsWith("OWL1_LITE");
+    }
+
+    boolean isOWL2() {
+        return name().startsWith("OWL2");
+    }
+
+    boolean isOWL2EL() {
+        return name().startsWith("OWL2_EL");
+    }
+
+    boolean isOWL2QL() {
+        return name().startsWith("OWL2_QL");
+    }
+
+    boolean isOWL2RL() {
+        return name().startsWith("OWL2_RL");
+    }
+
+    boolean isRules() {
+        return name().endsWith("_RULES_INF");
+    }
+
+    boolean isRDFS() {
+        return name().endsWith("_RDFS_INF");
+    }
+}
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-004  ·  EnumSource
+
+**项目** `Hudi`  **文件** `hudi/hudi-io/src/test/java/org/apache/hudi/io/compress/TestHoodieCompressor.java`  **测试** `testDefaultDecompressors`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @EnumSource(CompressionCodec.class)
+  public void testDefaultDecompressors(CompressionCodec codec) throws IOException {
+    switch (codec) {
+      case NONE:
+      case GZIP:
+        HoodieCompressor decompressor = HoodieCompressorFactory.getCompressor(codec);
+        byte[] actualOutput = new byte[INPUT_LENGTH + 100];
+        try (InputStream stream = prepareInputStream(codec)) {
+          for (int sizeToRead : READ_PART_SIZE_LIST) {
+            stream.mark(INPUT_LENGTH);
+            int actualSizeRead =
+                decompressor.decompress(stream, actualOutput, 4, sizeToRead);
+            assertEquals(actualSizeRead, Math.min(INPUT_LENGTH, sizeToRead));
+            assertEquals(0, IOUtils.compareTo(
+                actualOutput, 4, actualSizeRead, INPUT_BYTES, 0, actualSizeRead));
+            stream.reset();
+          }
+        }
+        break;
+      default:
+        assertThrows(
+            IllegalArgumentException.class, () -> HoodieCompressorFactory.getCompressor(codec));
+    }
+  }
+```
+
+### 枚举声明 — `CompressionCodec`（hudi/hudi-io/src/main/java/org/apache/hudi/io/compress/CompressionCodec.java）
+
+```java
+public enum CompressionCodec {
+  NONE("none", 2),
+  BZIP2("bz2", 5),
+  GZIP("gz", 1),
+  LZ4("lz4", 4),
+  LZO("lzo", 0),
+  SNAPPY("snappy", 3),
+  ZSTD("zstd", 6);
+
+  private static final Map<String, CompressionCodec>
+      NAME_TO_COMPRESSION_CODEC_MAP = createNameToCompressionCodecMap();
+  private static final Map<Integer, CompressionCodec>
+      ID_TO_COMPRESSION_CODEC_MAP = createIdToCompressionCodecMap();
+
+  private final String name;
+  // CompressionCodec ID to be stored in HFile on storage
+  // The ID of each codec cannot change or else that breaks all existing HFiles out there
+  // even the ones that are not compressed! (They use the NONE algorithm)
+  private final int id;
+
+  CompressionCodec(final String name, int id) {
+    this.name = name;
+    this.id = id;
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  public int getId() {
+    return id;
+  }
+
+  public static CompressionCodec findCodecByName(String name) {
+    CompressionCodec codec =
+        NAME_TO_COMPRESSION_CODEC_MAP.get(name.toLowerCase());
+    ValidationUtils.checkArgument(
+        codec != null, String.format("Cannot find compression codec: %s", name));
+    return codec;
+  }
+
+  /**
+   * Gets the compression codec based on the ID.  This ID is written to the HFile on storage.
+   *
+   * @param id ID indicating the compression codec
+   * @return compression codec based on the ID
+   */
+  public static CompressionCodec decodeCompressionCodec(int id) {
+    CompressionCodec codec = ID_TO_COMPRESSION_CODEC_MAP.get(id);
+    ValidationUtils.checkArgument(
+        codec != null, "Compression code not found for ID: " + id);
+    return codec;
+  }
+
+  /**
+   * @return the mapping of name to compression codec.
+   */
+  private static Map<String, CompressionCodec> createNameToCompressionCodecMap() {
+    return Collections.unmodifiableMap(
+        Arrays.stream(CompressionCodec.values())
+            .collect(Collectors.toMap(CompressionCodec::getName, Function.identity()))
+    );
+  }
+
+  /**
+   * @return the mapping of ID to compression codec.
+   */
+  private static Map<Integer, CompressionCodec> createIdToCompressionCodecMap() {
+    return Collections.unmodifiableMap(
+        Arrays.stream(CompressionCodec.values())
+            .collect(Collectors.toMap(CompressionCodec::getId, Function.identity()))
+    );
+  }
+}
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-005  ·  ValueSource
+
+**项目** `Maven`  **文件** `maven/impl/maven-core/src/test/java/org/apache/maven/plugin/PluginParameterExpressionEvaluatorTest.java`  **测试** `testValueExtractionOfMissingPrefixedSuffixedProperty`
+
+### 测试方法
+
+```java
+    void testValueExtractionOfMissingPrefixedSuffixedProperty(String missingPropertyExpression) throws Exception {
+        Properties executionProperties = new Properties();
+
+        ExpressionEvaluator ee = createExpressionEvaluator(null, null, executionProperties);
+
+        Object value = ee.evaluate(missingPropertyExpression);
+
+        assertEquals(missingPropertyExpression, value);
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-006  ·  ValueSource
+
+**项目** `commons-rng`  **文件** `commons-rng/commons-rng-sampling/src/test/java/org/apache/commons/rng/sampling/ArraySamplerTest.java`  **测试** `testShuffleIsRandom`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @ValueSource(ints = {13, 16})
+    void testShuffleIsRandom(int length) {
+        final int[] array = PermutationSampler.natural(length);
+        final UniformRandomProvider rng = RandomAssert.createRNG();
+        final long[][] counts = new long[length][length];
+        for (int j = 1; j <= 1000; j++) {
+            ArraySampler.shuffle(rng, array);
+            for (int i = 0; i < length; i++) {
+                counts[i][array[i]]++;
+            }
+        }
+        final double p = new ChiSquareTest().chiSquareTest(counts);
+        Assertions.assertFalse(p < 1e-3, () -> "p-value too small: " + p);
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-007  ·  MethodSource
+
+**项目** `Commons-Compress`  **文件** `commons-compress/src/test/java/org/apache/commons/compress/changes/ChangeSetSafeTypesTest.java`  **测试** `testDeleteFileCpio`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("org.apache.commons.compress.changes.TestFixtures#getOutputArchiveNames")
+    void testDeleteFileCpio(final String archiverName) throws Exception {
+        final Path input = createArchive(archiverName);
+        final File result = createTempFile("test", "." + archiverName);
+        try (InputStream inputStream = Files.newInputStream(input);
+                ArchiveInputStream<E> ais = createArchiveInputStream(archiverName, inputStream);
+                OutputStream outputStream = Files.newOutputStream(result.toPath());
+                ArchiveOutputStream<E> out = createArchiveOutputStream(archiverName, outputStream)) {
+            final ChangeSet<E> changeSet = createChangeSet();
+            changeSet.delete("bla/test5.xml");
+            archiveListDelete("bla/test5.xml");
+            new ChangeSetPerformer<>(changeSet).perform(ais, out);
+        }
+        checkArchiveContent(result, archiveList);
+    }
+```
+
+### Parameter provider — `TestFixtures#getOutputArchiveNames`（commons-compress/src/test/java/org/apache/commons/compress/changes/TestFixtures.java）
+
+```java
+
+    static Set<String> getOutputArchiveNames() {
+        final Set<String> outputStreamArchiveNames = ArchiveStreamFactory.DEFAULT.getOutputStreamArchiveNames();
+        outputStreamArchiveNames.remove(ArchiveStreamFactory.AR); // TODO BUG?
+        outputStreamArchiveNames.remove(ArchiveStreamFactory.SEVEN_Z); // TODO Does not support streaming.
+        return outputStreamArchiveNames;
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-008  ·  EnumSource
+
+**项目** `camel`  **文件** `camel/components/camel-infinispan/camel-infinispan/src/test/java/org/apache/camel/component/infinispan/remote/InfinispanRemoteEmbeddingStoreIT.java`  **测试** `registerSchema`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @EnumSource(VectorSimilarity.class)
+    public void registerSchema(VectorSimilarity similarity) {
+        int dimension = 900 + similarity.ordinal();
+        String typeName = EmbeddingStoreUtil.DEFAULT_TYPE_NAME_PREFIX + dimension;
+
+        InfinispanRemoteConfiguration configuration = createInfinispanRemoteConfiguration();
+        configuration.setEmbeddingStoreDimension(dimension);
+        configuration.setEmbeddingStoreTypeName(typeName);
+        configuration.setEmbeddingStoreVectorSimilarity(similarity);
+
+        InfinispanRemoteManager manager = new InfinispanRemoteManager(context, configuration);
+        BasicCache<Object, Object> metadataCache = null;
+        try {
+            manager.start();
+
+            metadataCache = manager.getCache(ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
+            Object metadata = metadataCache.get(EmbeddingStoreUtil.getSchemeFileName(configuration));
+            assertNotNull(metadata);
+        } finally {
+            if (metadataCache != null) {
+                metadataCache.remove(EmbeddingStoreUtil.getSchemeFileName(configuration));
+            }
+            manager.stop();
+        }
+    }
+```
+
+### 枚举声明
+
+> ⚠️ 未能定位枚举声明。
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-009  ·  MethodSource
+
+**项目** `Log4j`  **文件** `logging-log4j2/log4j-api-test/src/test/java/org/apache/logging/log4j/util/PropertySourceTokenizerTest.java`  **测试** `testTokenize`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("data")
+    void testTokenize(final String value, final List<CharSequence> expectedTokens) {
+        final List<CharSequence> tokens = PropertySource.Util.tokenize(value);
+        assertEquals(expectedTokens, tokens);
+    }
+```
+
+### Parameter provider — 同文件内的 `data`
+
+```java
+
+    public static Object[][] data() {
+        return new Object[][] {
+            {"log4j.simple", Collections.singletonList("simple")},
+            {"log4j_simple", Collections.singletonList("simple")},
+            {"log4j-simple", Collections.singletonList("simple")},
+            {"log4j/simple", Collections.singletonList("simple")},
+            {"log4j2.simple", Collections.singletonList("simple")},
+            {"Log4jSimple", Collections.singletonList("simple")},
+            {"LOG4J_simple", Collections.singletonList("simple")},
+            {"org.apache.logging.log4j.simple", Collections.singletonList("simple")},
+            {"log4j.simpleProperty", Arrays.asList("simple", "property")},
+            {"log4j.simple_property", Arrays.asList("simple", "property")},
+            {"LOG4J_simple_property", Arrays.asList("simple", "property")},
+            {"LOG4J_SIMPLE_PROPERTY", Arrays.asList("simple", "property")},
+            {"log4j2-dashed-propertyName", Arrays.asList("dashed", "property", "name")},
+            {"Log4jProperty_with.all-the/separators", Arrays.asList("property", "with", "all", "the", "separators")},
+            {"org.apache.logging.log4j.config.property", Arrays.asList("config", "property")},
+            // LOG4J2-3413
+            {"level", Collections.emptyList()},
+            {"user.home", Collections.emptyList()},
+            {"CATALINA_BASE", Collections.emptyList()}
+        };
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-010  ·  EnumSource
+
+**项目** `Druid`  **文件** `druid/processing/src/test/java/org/apache/druid/query/metadata/SegmentMetadataQueryQueryToolChestTest.java`  **测试** `testProjectionsWithNull`
+
+### 测试方法
+
+```java
+  @EnumSource(AggregatorMergeStrategy.class)
+  @ParameterizedTest(name = "{index}: with AggregatorMergeStrategy {0}")
+  public void testProjectionsWithNull(AggregatorMergeStrategy aggregatorMergeStrategy)
+  {
+    final SegmentAnalysis analysis1 = new SegmentAnalysis.Builder(TEST_SEGMENT_ID1)
+        .projection("channel_sum", new AggregateProjectionMetadata(PROJECTION_CHANNEL_ADDED_HOURLY, 100))
+        .build();
+    final SegmentAnalysis analysis1NullProjection = new SegmentAnalysis.Builder(TEST_SEGMENT_ID1).build();
+    final SegmentAnalysis analysis2 = new SegmentAnalysis.Builder(TEST_SEGMENT_ID2)
+        .projection("channel_sum", new AggregateProjectionMetadata(PROJECTION_CHANNEL_ADDED_HOURLY, 200))
+        .build();
+    final SegmentAnalysis analysis2NullProjection = new SegmentAnalysis.Builder(TEST_SEGMENT_ID2).build();
+
+    Assert.assertNull(mergeWithStrategy(analysis1NullProjection, analysis2, aggregatorMergeStrategy).getProjections());
+    Assert.assertNull(mergeWithStrategy(analysis1, analysis2NullProjection, aggregatorMergeStrategy).getProjections());
+    Assert.assertNull(
+        mergeWithStrategy(analysis1NullProjection, analysis2NullProjection, aggregatorMergeStrategy).getProjections()
+    );
+  }
+```
+
+### 枚举声明 — `AggregatorMergeStrategy`（druid/processing/src/main/java/org/apache/druid/query/metadata/metadata/AggregatorMergeStrategy.java）
+
+```java
+public enum AggregatorMergeStrategy
+{
+  STRICT,
+  LENIENT,
+  EARLIEST,
+  LATEST;
+
+  @JsonValue
+  @Override
+  public String toString()
+  {
+    return StringUtils.toLowerCase(this.name());
+  }
+
+  @JsonCreator
+  public static AggregatorMergeStrategy fromString(String name)
+  {
+    return valueOf(StringUtils.toUpperCase(name));
+  }
+}
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-011  ·  CsvSource
+
+**项目** `Commons-Lang`  **文件** `commons-lang/src/test/java/org/apache/commons/lang3/math/FractionTest.java`  **测试** `testHashCodeNotEquals`
+
+### 测试方法
+
+```java
+    void testHashCodeNotEquals(final int f1n, final int f1d, final int f2n, final int f2d) {
+        assertNotEquals(Fraction.getFraction(f1n, f1d), Fraction.getFraction(f2n, f2d));
+        assertNotEquals(Fraction.getFraction(f1n, f1d).hashCode(), Fraction.getFraction(f2n, f2d).hashCode());
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-012  ·  MethodSource
+
+**项目** `Hadoop`  **文件** `hadoop/hadoop-hdfs-project/hadoop-hdfs/src/test/java/org/apache/hadoop/hdfs/server/datanode/checker/TestDatasetVolumeChecker.java`  **测试** `testInvalidConfigurationValues`
+
+### 测试方法
+
+```java
+  @ParameterizedTest(name="{0}")
+  @MethodSource("data")
+  public void testInvalidConfigurationValues(VolumeCheckResult pExpectedVolumeHealth)
+      throws Exception {
+    initTestDatasetVolumeChecker(pExpectedVolumeHealth);
+    HdfsConfiguration conf = new HdfsConfiguration();
+    conf.setInt(DFS_DATANODE_DISK_CHECK_TIMEOUT_KEY, 0);
+    intercept(HadoopIllegalArgumentException.class,
+        "Invalid value configured for dfs.datanode.disk.check.timeout"
+            + " - 0 (should be > 0)",
+        () -> new DatasetVolumeChecker(conf, new FakeTimer()));
+    conf.unset(DFS_DATANODE_DISK_CHECK_TIMEOUT_KEY);
+
+    conf.setInt(DFS_DATANODE_DISK_CHECK_MIN_GAP_KEY, -1);
+    intercept(HadoopIllegalArgumentException.class,
+        "Invalid value configured for dfs.datanode.disk.check.min.gap"
+            + " - -1 (should be >= 0)",
+        () -> new DatasetVolumeChecker(conf, new FakeTimer()));
+    conf.unset(DFS_DATANODE_DISK_CHECK_MIN_GAP_KEY);
+
+    conf.setInt(DFS_DATANODE_DISK_CHECK_TIMEOUT_KEY, -1);
+    intercept(HadoopIllegalArgumentException.class,
+        "Invalid value configured for dfs.datanode.disk.check.timeout"
+            + " - -1 (should be > 0)",
+        () -> new DatasetVolumeChecker(conf, new FakeTimer()));
+    conf.unset(DFS_DATANODE_DISK_CHECK_TIMEOUT_KEY);
+
+    conf.setInt(DFS_DATANODE_FAILED_VOLUMES_TOLERATED_KEY, -2);
+    intercept(HadoopIllegalArgumentException.class,
+        "Invalid value configured for dfs.datanode.failed.volumes.tolerated"
+            + " - -2 should be greater than or equal to -1",
+        () -> new DatasetVolumeChecker(conf, new FakeTimer()));
+  }
+```
+
+### Parameter provider — 同文件内的 `data`
+
+```java
+  public static Collection<Object[]> data() {
+    List<Object[]> values = new ArrayList<>();
+    for (VolumeCheckResult result : VolumeCheckResult.values()) {
+      values.add(new Object[] {result});
+    }
+    values.add(new Object[] {null});
+    return values;
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-013  ·  ValueSource
+
+**项目** `Commons-BCEL`  **文件** `commons-bcel/src/test/java/org/apache/bcel/generic/EmptyVisitorTest.java`  **测试** `test`
+
+### 测试方法
+
+```java
+    void test(final String className) throws ClassNotFoundException {
+        // "java.io.Bits" is not in Java 21.
+        assumeFalse(SystemUtils.isJavaVersionAtLeast(JavaVersion.JAVA_21) && className.equals("java.io.Bits"));
+        final JavaClass javaClass = SyntheticRepository.getInstance().loadClass(className);
+        for (final Method method : javaClass.getMethods()) {
+            final Code code = method.getCode();
+            if (code != null) {
+                final InstructionList instructionList = new InstructionList(code.getCode());
+                for (final InstructionHandle instructionHandle : instructionList) {
+                    instructionHandle.accept(new EmptyVisitor() {
+                        @Override
+                        public void visitBREAKPOINT(final BREAKPOINT obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+
+                        @Override
+                        public void visitIMPDEP1(final IMPDEP1 obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+
+                        @Override
+                        public void visitIMPDEP2(final IMPDEP2 obj) {
+                            fail(RESERVED_OPCODE);
+                        }
+                    });
+                }
+            }
+        }
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-014  ·  CsvSource
+
+**项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-client-api/src/test/java/org/apache/commons/rng/UniformRandomProviderTest.java`  **测试** `testNextDoubleUniform`
+
+### 测试方法
+
+```java
+    void testNextDoubleUniform(long seed, double origin, double bound) {
+        Assertions.assertEquals((long) origin, origin, "origin");
+        Assertions.assertEquals((long) bound, bound, "bound");
+        final UniformRandomProvider rng = createRNG(seed);
+        // Note casting as long will round towards zero.
+        // If the upper bound is negative then this can create a domain error so use floor.
+        final LongSupplier nextMethod = origin == 0 ?
+                () -> (long) rng.nextDouble(bound) :
+                () -> (long) Math.floor(rng.nextDouble(origin, bound));
+        checkNextInRange("nextDouble", (long) origin, (long) bound, nextMethod);
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-015  ·  EnumSource
+
+**项目** `Avro`  **文件** `avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java`  **测试** `floatWrittenWithUnionSchemaIsNotConvertedToLongSchema`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @EnumSource(EncoderType.class)
+  void floatWrittenWithUnionSchemaIsNotConvertedToLongSchema(EncoderType encoderType) throws Exception {
+    Schema writer = UNION_INT_LONG_FLOAT_DOUBLE_RECORD;
+    Record record = defaultRecordWithSchema(writer, FIELD_A, 42.0f);
+    byte[] encoded = encodeGenericBlob(record, encoderType);
+    AvroTypeException exception = Assertions.assertThrows(AvroTypeException.class,
+        () -> decodeGenericBlob(LONG_RECORD, writer, encoded, encoderType));
+    Assertions.assertEquals("Found float, expecting long", exception.getMessage());
+  }
+```
+
+### 枚举声明 — `EncoderType`（avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java）
+
+```java
+  enum EncoderType {
+    BINARY, JSON
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-016  ·  CsvSource
+
+**项目** `Flink`  **文件** `flink/flink-table/flink-table-planner/src/test/java/org/apache/flink/table/planner/plan/nodes/exec/serde/StateMetadataTest.java`  **测试** `testDeserializeFromMalformedJson`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    public void testDeserializeFromMalformedJson(String malformedJson, String expectedMsg) {
+        assertThatThrownBy(
+                        () ->
+                                toObject(
+                                        configuredSerdeContext(),
+                                        malformedJson,
+                                        StateMetadata.class))
+                .hasMessageContaining(expectedMsg);
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-019  ·  MethodSource
+
+**项目** `ozone`  **文件** `ozone/hadoop-hdds/container-service/src/test/java/org/apache/hadoop/ozone/container/keyvalue/TestKeyValueBlockIterator.java`  **测试** `testKeyValueBlockIteratorWithHasNext`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @MethodSource("provideTestData")
+  public void testKeyValueBlockIteratorWithHasNext(
+      ContainerTestVersionInfo versionInfo, String keySeparator)
+      throws Exception {
+    initTest(versionInfo, keySeparator);
+    List<Long> blockIDs = createContainerWithBlocks(CONTAINER_ID, 2);
+    try (BlockIterator<BlockData> blockIter = db.getStore().getBlockIterator(CONTAINER_ID)) {
+
+      // Even calling multiple times hasNext() should not move entry forward.
+      assertTrue(blockIter.hasNext());
+      assertTrue(blockIter.hasNext());
+      assertTrue(blockIter.hasNext());
+      assertTrue(blockIter.hasNext());
+      assertTrue(blockIter.hasNext());
+      assertEquals((long) blockIDs.get(0), blockIter.nextBlock().getLocalID());
+
+      assertTrue(blockIter.hasNext());
+      assertTrue(blockIter.hasNext());
+      assertTrue(blockIter.hasNext());
+      assertTrue(blockIter.hasNext());
+      assertTrue(blockIter.hasNext());
+      assertEquals((long) blockIDs.get(1), blockIter.nextBlock().getLocalID());
+
+      blockIter.seekToFirst();
+      assertEquals((long) blockIDs.get(0), blockIter.nextBlock().getLocalID());
+      assertEquals((long) blockIDs.get(1), blockIter.nextBlock().getLocalID());
+
+      NoSuchElementException exception = assertThrows(NoSuchElementException.class, blockIter::nextBlock);
+      assertThat(exception).hasMessage("Block Iterator reached end for ContainerID " + CONTAINER_ID);
+    }
+  }
+```
+
+### Parameter provider — 同文件内的 `provideTestData`
+
+```java
+
+  private static List<Arguments> provideTestData() {
+    List<Arguments> listA =
+        ContainerTestVersionInfo.getLayoutList().stream().map(
+                each -> Arguments.of(each, ""))
+            .collect(toList());
+    List<Arguments> listB =
+        ContainerTestVersionInfo.getLayoutList().stream().map(
+                each -> Arguments.of(each, new DatanodeConfiguration()
+                    .getContainerSchemaV3KeySeparator()))
+            .collect(toList());
+
+    listB.addAll(listA);
+    return listB;
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-022  ·  MethodSource
+
+**项目** `ZooKeeper`  **文件** `zookeeper/zookeeper-server/src/test/java/org/apache/zookeeper/common/X509UtilTest.java`  **测试** `testLoadPEMTrustStoreNullPassword`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("data")
+    public void testLoadPEMTrustStoreNullPassword(
+            X509KeyType caKeyType, X509KeyType certKeyType, String keyPassword, Integer paramIndex)
+            throws Exception {
+        init(caKeyType, certKeyType, keyPassword, paramIndex);
+        if (!x509TestContext.getTrustStorePassword().isEmpty()) {
+            return;
+        }
+        // Make sure that empty password and null password are treated the same
+        X509TrustManager tm = X509Util.createTrustManager(
+            x509TestContext.getTrustStoreFile(KeyStoreFileType.PEM).getAbsolutePath(),
+            null,
+            KeyStoreFileType.PEM.getPropertyValue(),
+            false,
+            false,
+            true,
+            true,
+            false,
+            false);
+
+    }
+```
+
+### Parameter provider — `data`（zookeeper/zookeeper-contrib/zookeeper-contrib-rest/src/test/java/org/apache/zookeeper/server/jersey/CreateTest.java）
+
+```java
+    @Parameters
+    public static Collection<Object[]> data() throws Exception {
+        String baseZnode = Base.createBaseZNode();
+
+        return Arrays.asList(new Object[][] {
+          {MediaType.APPLICATION_JSON,
+              baseZnode, "foo bar", "utf8",
+              ClientResponse.Status.CREATED,
+              new ZPath(baseZnode + "/foo bar"), null,
+              false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t1", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-t1"),
+              null, false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t1", "utf8",
+              ClientResponse.Status.CONFLICT, null, null, false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t2", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-t2"),
+              "".getBytes(), false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t2", "utf8",
+              ClientResponse.Status.CONFLICT, null, null, false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t3", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-t3"),
+              "foo".getBytes(), false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t3", "utf8",
+              ClientResponse.Status.CONFLICT, null, null, false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t4", "base64",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-t4"),
+              "foo".getBytes(), false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-"), null,
+              true },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-"), null,
+              true }
+          });
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-025  ·  MethodSource
+
+**项目** `Accumulo`  **文件** `accumulo/core/src/test/java/org/apache/accumulo/core/data/RowRangeTest.java`  **测试** `testClip`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("clipTestArguments")
+    void testClip(RowRange fence, RowRange range, RowRange expected) {
+      if (expected != null) {
+        RowRange clipped = fence.clip(range);
+        assertEquals(expected, clipped);
+      } else {
+        assertThrows(IllegalArgumentException.class, () -> fence.clip(range));
+      }
+    }
+```
+
+### Parameter provider — 同文件内的 `clipTestArguments`
+
+```java
+
+    private Stream<Arguments> clipTestArguments() {
+      RowRange fenceOpen = RowRange.open("a", "c");
+      RowRange fenceClosedOpen = RowRange.closedOpen("a", "c");
+      RowRange fenceOpenClosed = RowRange.openClosed("a", "c");
+      RowRange fenceClosed = RowRange.closed("a", "c");
+
+      RowRange fenceOpenCN = RowRange.open("c", "n");
+      RowRange fenceClosedCN = RowRange.closed("c", "n");
+      RowRange fenceClosedB = RowRange.closed("b");
+
+      return Stream.of(
+          // (a,c) (a,c) -> (a,c)
+          Arguments.of(fenceOpen, RowRange.open("a", "c"), RowRange.open("a", "c")),
+          // (a,c) [a,c) -> (a,c)
+          Arguments.of(fenceOpen, RowRange.closedOpen("a", "c"), RowRange.open("a", "c")),
+          // (a,c) (a,c] -> (a,c)
+          Arguments.of(fenceOpen, RowRange.openClosed("a", "c"), RowRange.open("a", "c")),
+          // (a,c) [a,c] -> (a,c)
+          Arguments.of(fenceOpen, RowRange.closed("a", "c"), RowRange.open("a", "c")),
+
+          // [a,c) (a,c) -> (a,c)
+          Arguments.of(fenceClosedOpen, RowRange.open("a", "c"), RowRange.open("a", "c")),
+          // [a,c) [a,c) -> [a,c)
+          Arguments.of(fenceClosedOpen, RowRange.closedOpen("a", "c"),
+              RowRange.closedOpen("a", "c")),
+          // [a,c) (a,c] -> (a,c)
+          Arguments.of(fenceClosedOpen, RowRange.openClosed("a", "c"), RowRange.open("a", "c")),
+          // [a,c) [a,c] -> [a,c)
+          Arguments.of(fenceClosedOpen, RowRange.closed("a", "c"), RowRange.closedOpen("a", "c")),
+
+          // (a,c] (a,c) -> (a,c)
+          Arguments.of(fenceOpenClosed, RowRange.open("a", "c"), RowRange.open("a", "c")),
+          // (a,c] [a,c) -> (a,c)
+          Arguments.of(fenceOpenClosed, RowRange.closedOpen("a", "c"), RowRange.open("a", "c")),
+          // (a,c] (a,c] -> (a,c]
+          Arguments.of(fenceOpenClosed, RowRange.openClosed("a", "c"),
+              RowRange.openClosed("a", "c")),
+          // (a,c] [a,c] -> (a,c]
+          Arguments.of(fenceOpenClosed, RowRange.closed("a", "c"), RowRange.openClosed("a", "c")),
+          // (a,c] (-inf, c) -> (a,c)
+          Arguments.of(fenceOpenClosed, RowRange.lessThan("c"), RowRange.open("a", "c")),
+          // (a,c] (-inf, a) -> empty
+          Arguments.of(fenceOpenClosed, RowRange.lessThan("a"), null),
+
+          // [a,c] (a,c) -> (a,c)
+          Arguments.of(fenceClosed, RowRange.open("a", "c"), RowRange.open("a", "c")),
+          // [a,c] [a,c) -> [a,c)
+          Arguments.of(fenceClosed, RowRange.closedOpen("a", "c"), RowRange.closedOpen("a", "c")),
+          // [a,c] (a,c] -> (a,c]
+          Arguments.of(fenceClosed, RowRange.openClosed("a", "c"), RowRange.openClosed("a", "c")),
+          // [a,c] [a,c] -> [a,c]
+          Arguments.of(fenceClosed, RowRange.closed("a", "c"), RowRange.closed("a", "c")),
+
+          // (a,c) (-inf, +inf) -> (a,c)
+          Arguments.of(fenceOpen, RowRange.all(), fenceOpen),
+          // (a,c) [a, +inf) -> (a,c)
+          Arguments.of(fenceOpen, RowRange.atLeast("a"), fenceOpen),
+          // (a,c) (-inf, c] -> (a,c)
+          Arguments.of(fenceOpen, RowRange.atMost("c"), fenceOpen),
+          // (a,c) [a,c] -> (a,c)
+          Arguments.of(fenceOpen, RowRange.closed("a", "c"), fenceOpen),
+
+          // (a,c) (0,z) -> (a,c)
+          Arguments.of(fenceOpen, RowRange.open("0", "z"), fenceOpen),
+          // (a,c) [0,z) -> (a,c)
+          Arguments.of(fenceOpen, RowRange.closedOpen("0", "z"), fenceOpen),
+          // (a,c) (0,z] -> (a,c)
+          Arguments.of(fenceOpen, RowRange.openClosed("0", "z"), fenceOpen),
+          // (a,c) [0,z] -> (a,c)
+          Arguments.of(fenceOpen, RowRange.closed("0", "z"), fenceOpen),
+
+          // (a,c) (0,b) -> (a,b)
+          Arguments.of(fenceOpen, RowRange.open("0", "b"), RowRange.open("a", "b")),
+          // (a,c) [0,b) -> (a,b)
+          Arguments.of(fenceOpen, RowRange.closedOpen("0", "b"), RowRange.open("a", "b")),
+          // (a,c) (0,b] -> (a,b]
+          Arguments.of(fenceOpen, RowRange.openClosed("0", "b"), RowRange.openClosed("a", "b")),
+          // (a,c) [0,b] -> (a,b]
+          Arguments.of(fenceOpen, RowRange.closed("0", "b"), RowRange.openClosed("a", "b")),
+
+          // (a,c) (a1,z) -> (a1,c)
+          Arguments.of(fenceOpen, RowRange.open("a1", "z"), RowRange.open("a1", "c")),
+          // (a,c) [a1,z) -> [a1,c)
+          Arguments.of(fenceOpen, RowRange.closedOpen("a1", "z"), RowRange.closedOpen("a1", "c")),
+          // (a,c) (a1,z] -> (a1,c)
+          Arguments.of(fenceOpen, RowRange.openClosed("a1", "z"), RowRange.open("a1", "c")),
+          // (a,c) [a1,z] -> [a1,c)
+          Arguments.of(fenceOpen, RowRange.closed("a1", "z"), RowRange.closedOpen("a1", "c")),
+
+          // (a,c) (a1,b) -> (a1,b)
+          Arguments.of(fenceOpen, RowRange.open("a1", "b"), RowRange.open("a1", "b")),
+          // (a,c) [a1,b) -> [a1,b)
+          Arguments.of(fenceOpen, RowRange.closedOpen("a1", "b"), RowRange.closedOpen("a1", "b")),
+          // (a,c) (a1,b] -> (a1,b]
+          Arguments.of(fenceOpen, RowRange.openClosed("a1", "b"), RowRange.openClosed("a1", "b")),
+          // (a,c) [a1,b] -> [a1,b]
+          Arguments.of(fenceOpen, RowRange.closed("a1", "b"), RowRange.closed("a1", "b")),
+          // (a,c) (a,+inf) -> (a,c)
+          Arguments.of(fenceOpen, RowRange.greaterThan("a"), RowRange.open("a", "c")),
+          // (a,c) (1,+inf) -> (a,c)
+          Arguments.of(fenceOpen, RowRange.greaterThan("1"), RowRange.open("a", "c")),
+
+          // (c,n) (a,c) -> empty
+          Arguments.of(fenceOpenCN, RowRange.open("a", "c"), null),
+          // (c,n) (a,c] -> empty
+          Arguments.of(fenceOpenCN, RowRange.closedOpen("a", "c"), null),
+          // (c,n) (n,r) -> empty
+          Arguments.of(fenceOpenCN, RowRange.open("n", "r"), null),
+          // (c,n) [n,r) -> empty
+          Arguments.of(fenceOpenCN, RowRange.closedOpen("n", "r"), null),
+          // (c,n) (a,b) -> empty
+          Arguments.of(fenceOpenCN, RowRange.open("a", "b"), null),
+          // (c,n) (a,b] -> empty
+          Arguments.of(fenceOpenCN, RowRange.closedOpen("a", "b"), null),
+
+          // [c,n] (a,c) -> empty
+          Arguments.of(fenceClosedCN, RowRange.open("a", "c"), null),
+          // [c,n] (a,c] -> (c,c)
+          Arguments.of(fenceClosedCN, RowRange.openClosed("a", "c"), RowRange.closed("c")),
+          // [c,n] (n,r) -> (n,n)
+          Arguments.of(fenceClosedCN, RowRange.open("n", "r"), null),
+          // [c,n] [n,r) -> (n,n)
+          Arguments.of(fenceClosedCN, RowRange.closedOpen("n", "r"), RowRange.closed("n")),
+          // [c,n] (q,r) -> empty
+          Arguments.of(fenceClosedCN, RowRange.open("q", "r"), null),
+          // [c,n] [q,r) -> empty
+          Arguments.of(fenceClosedCN, RowRange.closedOpen("q", "r"), null),
+
+          // [b] (b,c) -> empty
+          Arguments.of(fenceClosedB, RowRange.open("b", "c"), null),
+          // [b] [b,c) -> [b]
+          Arguments.of(fenceClosedB, RowRange.closedOpen("b", "c"), RowRange.closed("b")),
+          // [b] (a,b) -> empty
+          Arguments.of(fenceClosedB, RowRange.open("a", "b"), null),
+          // [b] (a,b] -> [b]
+          Arguments.of(fenceClosedB, RowRange.openClosed("a", "b"), RowRange.closed("b")));
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-028  ·  EnumSource
+
+**项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-simple/src/test/java/org/apache/commons/rng/simple/internal/RandomSourceInternalParametricTest.java`  **测试** `testCreateSeedBytes`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @EnumSource
+    void testCreateSeedBytes(RandomSourceInternal randomSourceInternal) {
+        // This should be the full length seed
+        final byte[] seed = randomSourceInternal.createSeedBytes(new SplitMix64(12345L));
+        final int size = seed.length;
+
+        final Integer expected = EXPECTED_SEED_BYTES.get(randomSourceInternal);
+        Assertions.assertNotNull(expected, () -> "Missing expected seed byte size: " + randomSourceInternal);
+        Assertions.assertEquals(expected.intValue(), size, randomSourceInternal::toString);
+    }
+```
+
+### 枚举声明 — `RandomSourceInternal`（commons-rng/commons-rng-simple/src/main/java/org/apache/commons/rng/simple/internal/ProviderBuilder.java）
+
+```java
+    public enum RandomSourceInternal {
+        /** Source of randomness is {@link JDKRandom}. */
+        JDK(JDKRandom.class,
+            1,
+            NativeSeedType.LONG),
+        /** Source of randomness is {@link Well512a}. */
+        WELL_512_A(Well512a.class,
+                   16, 0, 16,
+                   NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well1024a}. */
+        WELL_1024_A(Well1024a.class,
+                    32, 0, 32,
+                    NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well19937a}. */
+        WELL_19937_A(Well19937a.class,
+                     624, 0, 623,
+                     NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well19937c}. */
+        WELL_19937_C(Well19937c.class,
+                     624, 0, 623,
+                     NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well44497a}. */
+        WELL_44497_A(Well44497a.class,
+                     1391, 0, 1390,
+                     NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well44497b}. */
+        WELL_44497_B(Well44497b.class,
+                     1391, 0, 1390,
+                     NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link MersenneTwister}. */
+        MT(MersenneTwister.class,
+           624,
+           NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link ISAACRandom}. */
+        ISAAC(ISAACRandom.class,
+              256,
+              NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link SplitMix64}. */
+        SPLIT_MIX_64(SplitMix64.class,
+                     1,
+                     NativeSeedType.LONG),
+        /** Source of randomness is {@link XorShift1024Star}. */
+        XOR_SHIFT_1024_S(XorShift1024Star.class,
+                         16, 0, 16,
+                         NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link TwoCmres}. */
+        TWO_CMRES(TwoCmres.class,
+                  1,
+                  NativeSeedType.INT),
+        /**
+         * Source of randomness is {@link TwoCmres} with explicit selection
+         * of the two subcycle generators.
+         */
+        TWO_CMRES_SELECT(TwoCmres.class,
+                         1,
+                         NativeSeedType.INT,
+                         Integer.TYPE,
+                         Integer.TYPE),
+        /** Source of randomness is {@link MersenneTwister64}. */
+        MT_64(MersenneTwister64.class,
+              312,
+              NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link MultiplyWithCarry256}. */
+        MWC_256(MultiplyWithCarry256.class,
+                257, 0, 257,
+                NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link KISSRandom}. */
+        KISS(KISSRandom.class,
+             // If zero in initial 3 positions the output is a simple LCG
+             4, 0, 3,
+             NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XorShift1024StarPhi}. */
+        XOR_SHIFT_1024_S_PHI(XorShift1024StarPhi.class,
+                             16, 0, 16,
+                             NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoRoShiRo64Star}. */
+        XO_RO_SHI_RO_64_S(XoRoShiRo64Star.class,
+                          2, 0, 2,
+                          NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XoRoShiRo64StarStar}. */
+        XO_RO_SHI_RO_64_SS(XoRoShiRo64StarStar.class,
+                           2, 0, 2,
+                           NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XoShiRo128Plus}. */
+        XO_SHI_RO_128_PLUS(XoShiRo128Plus.class,
+                           4, 0, 4,
+                           NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XoShiRo128StarStar}. */
+        XO_SHI_RO_128_SS(XoShiRo128StarStar.class,
+                         4, 0, 4,
+                         NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XoRoShiRo128Plus}. */
+        XO_RO_SHI_RO_128_PLUS(XoRoShiRo128Plus.class,
+                              2, 0, 2,
+                              NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoRoShiRo128StarStar}. */
+        XO_RO_SHI_RO_128_SS(XoRoShiRo128StarStar.class,
+                            2, 0, 2,
+                            NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoShiRo256Plus}. */
+        XO_SHI_RO_256_PLUS(XoShiRo256Plus.class,
+                           4, 0, 4,
+                           NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoShiRo256StarStar}. */
+        XO_SHI_RO_256_SS(XoShiRo256StarStar.class,
+                         4, 0, 4,
+                         NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoShiRo512Plus}. */
+        XO_SHI_RO_512_PLUS(XoShiRo512Plus.class,
+                           8, 0, 8,
+                           NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoShiRo512StarStar}. */
+        XO_SHI_RO_512_SS(XoShiRo512StarStar.class,
+                         8, 0, 8,
+                         NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link PcgXshRr32}. */
+        PCG_XSH_RR_32(PcgXshRr32.class,
+                2,
+                NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link PcgXshRs32}. */
+        PCG_XSH_RS_32(PcgXshRs32.class,
+                2,
+                NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link PcgRxsMXs64}. */
+        PCG_RXS_M_XS_64(PcgRxsMXs64.class,
+                2,
+                NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link PcgMcgXshRr32}. */
+        PCG_MCG_XSH_RR_32(PcgMcgXshRr32.class,
+                1,
+                NativeSeedType.LONG),
+        /** Source of randomness is {@link PcgMcgXshRs32}. */
+        PCG_MCG_XSH_RS_32(PcgMcgXshRs32.class,
+                1,
+                NativeSeedType.LONG),
+        /** Source of randomness is {@link MiddleSquareWeylSequence}. */
+        MSWS(MiddleSquareWeylSequence.class,
+             // Many partially zero seeds can create low quality initial output.
+             // The Weyl increment cascades bits into the random state so ideally it
+             // has a high number of bit transitions. Minimally ensure it is non-zero.
+             3, 2, 3,
+             NativeSeedType.LONG_ARRAY) {
+            @Override
+            protected Object createSeed() {
+                return createMswsSeed(SeedFactory.createLong());
+            }
+
+            @Override
+            protected Object convertSeed(Object seed) {
+                // Allow seeding with primitives to generate a good seed
+                if (seed instanceof Integer) {
+                    return createMswsSeed((Integer) seed);
+                } else if (seed instanceof Long) {
+                    return createMswsSeed((Long) seed);
+                }
+                // Other types (e.g. the native long[]) are handled by the default conversion
+                return super.convertSeed(seed);
+            }
+
+            @Override
+    // … 省略 460 行
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-031  ·  MethodSource
+
+**项目** `Hop`  **文件** `hop/plugins/tech/azure/src/test/java/org/apache/hop/vfs/azure/AzureFileNameParserTest.java`  **测试** `parseUri`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @MethodSource("azureUris")
+  void parseUri(
+      String inputUri,
+      String expectedScheme,
+      String expectedContainer,
+      String expectedPathAfterContainer,
+      FileType expectedType)
+      throws FileSystemException {
+    VfsComponentContext context = Mockito.mock(VfsComponentContext.class);
+
+    AzureFileName actual = (AzureFileName) parser.parseUri(context, null, inputUri);
+
+    System.out.println(inputUri);
+    System.out.println("Scheme: " + actual.getScheme());
+    System.out.println("Container: " + actual.getContainer());
+    System.out.println("Path: " + actual.getPath());
+    System.out.println("--------------------------");
+
+    Assertions.assertEquals(expectedScheme, actual.getScheme());
+    Assertions.assertEquals(expectedContainer, actual.getContainer());
+    Assertions.assertEquals(expectedPathAfterContainer, actual.getPathAfterContainer());
+    Assertions.assertEquals(expectedType, actual.getType());
+  }
+```
+
+### Parameter provider — 同文件内的 `azureUris`
+
+```java
+
+  static Stream<Arguments> azureUris() {
+    return Stream.of(
+        Arguments.of(
+            "azfs://hopsa/container/folder1/parquet-test-delo2-azfs-00-0001.parquet",
+            "azfs",
+            "container",
+            "/folder1/parquet-test-delo2-azfs-00-0001.parquet",
+            FileType.FILE),
+        Arguments.of(
+            "azfs:/hopsa/container/folder1/", "azfs", "container", "/folder1", FileType.FOLDER),
+        Arguments.of("azure://test/folder1/", "azure", "test", "/folder1", FileType.FOLDER),
+        Arguments.of(
+            "azure://mycontainer/folder1/parquet-test-delo2-azfs-00-0001.parquet",
+            "azure",
+            "mycontainer",
+            "/folder1/parquet-test-delo2-azfs-00-0001.parquet",
+            FileType.FILE),
+        Arguments.of(
+            "azfs://hopsa/delo/delo3-azfs-00-0001.parquet",
+            "azfs",
+            "delo",
+            "/delo3-azfs-00-0001.parquet",
+            FileType.FILE),
+        Arguments.of(
+            "azfs://hopsa/container/folder1/", "azfs", "container", "/folder1", FileType.FOLDER),
+        Arguments.of("azfs://account/container/", "azfs", "container", "", FileType.FOLDER),
+        Arguments.of(
+            "azfs://otheraccount/container/myfile.txt",
+            "azfs",
+            "container",
+            "/myfile.txt",
+            FileType.FILE),
+        Arguments.of(
+            "azfs:///account1/container/myfile.txt",
+            "azfs",
+            "container",
+            "/myfile.txt",
+            FileType.FILE),
+        Arguments.of(
+            "azfs:///fake/container/path/to/resource/myfile.txt",
+            "azfs",
+            "container",
+            "/path/to/resource/myfile.txt",
+            FileType.FILE));
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-034  ·  CsvSource
+
+**项目** `Hudi`  **文件** `hudi/hudi-client/hudi-client-common/src/test/java/org/apache/hudi/table/upgrade/TestSevenToEightUpgradeHandler.java`  **测试** `testUpgradeMergeMode`
+
+### 测试方法
+
+```java
+  void testUpgradeMergeMode(String payloadClass, String preCombineField, String expectedMergeMode, String expectedStrategy, String expectedPayloadClass) {
+    HoodieTableConfig tableConfig = Mockito.mock(HoodieTableConfig.class);
+    Map<ConfigProperty, String> tablePropsToAdd = new HashMap<>();
+
+    when(tableConfig.getPayloadClass()).thenReturn(payloadClass);
+    when(tableConfig.getOrderingFieldsStr()).thenReturn(Option.ofNullable(preCombineField));
+
+    SevenToEightUpgradeHandler.upgradeMergeMode(tableConfig, tablePropsToAdd);
+
+    assertEquals(expectedMergeMode, tablePropsToAdd.get(HoodieTableConfig.RECORD_MERGE_MODE));
+    assertEquals(expectedStrategy, tablePropsToAdd.get(HoodieTableConfig.RECORD_MERGE_STRATEGY_ID));
+    if (expectedPayloadClass != null) {
+      assertEquals(expectedPayloadClass, tablePropsToAdd.get(HoodieTableConfig.PAYLOAD_CLASS_NAME));
+    } else {
+      assertTrue(!tablePropsToAdd.containsKey(HoodieTableConfig.PAYLOAD_CLASS_NAME));
+    }
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-037  ·  MethodSource
+
+**项目** `Hadoop`  **文件** `hadoop/hadoop-common-project/hadoop-common/src/test/java/org/apache/hadoop/fs/TestLocalDirAllocator.java`  **测试** `testCreateManyFilesRandom`
+
+### 测试方法
+
+```java
+  @Timeout(value = 30)
+  @MethodSource("params")
+  @ParameterizedTest
+  public void testCreateManyFilesRandom(String paramRoot, String paramPrefix) throws Exception {
+    assumeNotWindows();
+    initTestLocalDirAllocator(paramRoot, paramPrefix);
+    final int numDirs = 5;
+    final int numTries = 100;
+    String[] dirs = new String[numDirs];
+    for (int d = 0; d < numDirs; ++d) {
+      dirs[d] = buildBufferDir(root, d);
+    }
+    boolean next_dir_not_selected_at_least_once = false;
+    try {
+      conf.set(CONTEXT, dirs[0] + "," + dirs[1] + "," + dirs[2] + ","
+          + dirs[3] + "," + dirs[4]);
+      Path[] paths = new Path[5];
+      for (int d = 0; d < numDirs; ++d) {
+        paths[d] = new Path(dirs[d]);
+        assertTrue(localFs.mkdirs(paths[d]));
+      }
+
+      int inDir=0;
+      int prevDir = -1;
+      int[] counts = new int[5];
+      for(int i = 0; i < numTries; ++i) {
+        File result = createTempFile(SMALL_FILE_SIZE);
+        for (int d = 0; d < numDirs; ++d) {
+          if (result.getPath().startsWith(paths[d].toUri().getPath())) {
+            inDir = d;
+            break;
+          }
+        }
+        // Verify we always select a different dir
+        assertNotEquals(prevDir, inDir);
+        // Verify we are not always selecting the next dir - that was the old
+        // algorithm.
+        if ((prevDir != -1) && (inDir != ((prevDir + 1) % numDirs))) {
+          next_dir_not_selected_at_least_once = true;
+        }
+        prevDir = inDir;
+        counts[inDir]++;
+        result.delete();
+      }
+    } finally {
+      rmBufferDirs();
+    }
+    assertTrue(next_dir_not_selected_at_least_once);
+  }
+```
+
+### Parameter provider — 同文件内的 `params`
+
+```java
+
+  public static Collection<Object[]> params() {
+    Object [][] data = new Object[][] {
+      { BUFFER_DIR_ROOT, RELATIVE },
+      { ABSOLUTE_DIR_ROOT, ABSOLUTE },
+      { QUALIFIED_DIR_ROOT, QUALIFIED }
+    };
+
+    return Arrays.asList(data);
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-040  ·  ValueSource
+
+**项目** `Calcite`  **文件** `calcite/testkit/src/main/java/org/apache/calcite/test/SqlOperatorTest.java`  **测试** `testTimestampDiff`
+
+### 测试方法
+
+```java
+  @ValueSource(booleans = {true, false})
+  @ParameterizedTest(name = "CoercionEnabled: {0}")
+  void testTimestampDiff(boolean coercionEnabled) {
+    final SqlOperatorFixture f = fixture()
+        .withValidatorConfig(c -> c.withTypeCoercionEnabled(coercionEnabled));
+    f.setFor(SqlStdOperatorTable.TIMESTAMP_DIFF, VmName.EXPAND);
+    HOUR_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2016-02-24 12:42:25', "
+                + "timestamp '2016-02-24 15:42:25')",
+            "3", "INTEGER NOT NULL"));
+    MICROSECOND_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2016-02-24 12:42:25', "
+                + "timestamp '2016-02-24 12:42:20')",
+            "-5000000", "INTEGER NOT NULL"));
+    NANOSECOND_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2016-02-24 12:42:25', "
+                + "timestamp '2016-02-24 12:42:20')",
+            "-5000000000", "BIGINT NOT NULL"));
+    YEAR_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2014-02-24 12:42:25', "
+                + "timestamp '2016-02-24 12:42:25')",
+            "2", "INTEGER NOT NULL"));
+    WEEK_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2014-02-24 12:42:25', "
+                + "timestamp '2016-02-24 12:42:25')",
+            "104", "INTEGER NOT NULL"));
+    WEEK_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2014-02-19 12:42:25', "
+                + "timestamp '2016-02-24 12:42:25')",
+            "105", "INTEGER NOT NULL"));
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2014-02-24 12:42:25', "
+                + "timestamp '2016-02-24 12:42:25')",
+            "24", "INTEGER NOT NULL"));
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2019-09-01 00:00:00', "
+                + "timestamp '2020-03-01 00:00:00')",
+            "6", "INTEGER NOT NULL"));
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2019-09-01 00:00:00', "
+                + "timestamp '2016-08-01 00:00:00')",
+            "-37", "INTEGER NOT NULL"));
+    QUARTER_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2014-02-24 12:42:25', "
+                + "timestamp '2016-02-24 12:42:25')",
+            "8", "INTEGER NOT NULL"));
+    // Until 1.33, CENTURY was an invalid time frame for TIMESTAMPDIFF
+    f.checkScalar("timestampdiff(CENTURY, "
+            + "timestamp '2014-02-24 12:42:25', "
+            + "timestamp '2614-02-24 12:42:25')",
+        "6", "INTEGER NOT NULL");
+    QUARTER_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "timestamp '2014-02-24 12:42:25', "
+                + "cast(null as timestamp))",
+            isNullValue(), "INTEGER"));
+    QUARTER_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "cast(null as timestamp), "
+                + "timestamp '2014-02-24 12:42:25')",
+            isNullValue(), "INTEGER"));
+
+    // timestampdiff with date
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2016-03-15', date '2016-06-14')",
+            "2", "INTEGER NOT NULL"));
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2019-09-01', date '2020-03-01')",
+            "6", "INTEGER NOT NULL"));
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2019-09-01', date '2016-08-01')",
+            "-37", "INTEGER NOT NULL"));
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "time '12:42:25', time '12:42:25')",
+            "0", "INTEGER NOT NULL"));
+    // 2 test cases for [CALCITE-7146] TIMESTAMPDIFF accepts arguments with mismatched types
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "time '12:42:25', date '2016-06-14')",
+            "557", "INTEGER NOT NULL"));
+    MONTH_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2016-06-14', time '12:42:25')",
+            "-557", "INTEGER NOT NULL"));
+    DAY_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2016-06-15', date '2016-06-14')",
+            "-1", "INTEGER NOT NULL"));
+    HOUR_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2016-06-15', date '2016-06-14')",
+            "-24", "INTEGER NOT NULL"));
+    HOUR_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2016-06-15',  date '2016-06-15')",
+            "0", "INTEGER NOT NULL"));
+    MINUTE_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2016-06-15', date '2016-06-14')",
+            "-1440", "INTEGER NOT NULL"));
+    SECOND_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "cast(null as date), date '2016-06-15')",
+            isNullValue(), "INTEGER"));
+    DAY_VARIANTS.forEach(s ->
+        f.checkScalar("timestampdiff(" + s + ", "
+                + "date '2016-06-15', cast(null as date))",
+            isNullValue(), "INTEGER"));
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-043  ·  ValueSource
+
+**项目** `Camel`  **文件** `camel/components/camel-coap/src/test/java/org/apache/camel/coap/CoAPComponentTLSTestBase.java`  **测试** `testCall`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @ValueSource(strings = { "direct:start", "direct:selfsigned", /*"direct:clientauth",*/ "direct:ciphersuites" })
+    @DisplayName("Test calls with/without certificates")
+    void testCall(String endpointUri) throws Exception {
+        MockEndpoint mock = getMockEndpoint("mock:result");
+        mock.expectedMinimumMessageCount(1);
+        mock.expectedBodiesReceived("Hello Camel CoAP");
+        mock.expectedHeaderReceived(CoAPConstants.CONTENT_TYPE,
+                MediaTypeRegistry.toString(MediaTypeRegistry.APPLICATION_OCTET_STREAM));
+        mock.expectedHeaderReceived(CoAPConstants.COAP_RESPONSE_CODE, CoAP.ResponseCode.CONTENT.toString());
+        sendBodyAndHeader(endpointUri, "Camel CoAP", CoAPConstants.COAP_METHOD, "POST");
+        MockEndpoint.assertIsSatisfied(context);
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-046  ·  CsvSource
+
+**项目** `XMLBeans`  **文件** `xmlbeans/src/test/java/xmlobject/checkin/CDataTest.java`  **测试** `checkCData`
+
+### 测试方法
+
+```java
+    void checkCData(String xmlText, String expected1, String expected2) throws XmlException {
+        String NL = Stream.of(SystemProperties.getProperty("line.separator"),System.getProperty("line.separator"),"\n")
+            .filter(Objects::nonNull).findFirst().get();
+
+        XmlOptions opts = new XmlOptions();
+        opts.setUseCDataBookmarks();
+
+        XmlObject xo = XmlObject.Factory.parse(xmlText.replace("NL", NL), opts);
+
+        String result1 = xo.xmlText(opts);
+        assertEquals(expected1.replace("NL", NL), result1, "xmlText");
+
+        opts.setSavePrettyPrint();
+        String result2 = xo.xmlText(opts);
+        assertEquals(expected2.replace("NL", NL), result2, "prettyPrint");
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-049  ·  ValueSource
+
+**项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-sampling/src/test/java/org/apache/commons/rng/sampling/DiscreteProbabilityCollectionSamplerTest.java`  **测试** `testPrecondition4`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @ValueSource(doubles = {-1, Double.POSITIVE_INFINITY, Double.NaN})
+    void testPrecondition4(double p) {
+        final List<Double> collection = Arrays.asList(1d, 2d);
+        final double[] probabilities = {0, p};
+        Assertions.assertThrows(IllegalArgumentException.class,
+            () -> new DiscreteProbabilityCollectionSampler<>(rng,
+                collection,
+                probabilities));
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-052  ·  EnumSource
+
+**项目** `Jena`  **文件** `jena/jena-ontapi/src/test/java/org/apache/jena/ontapi/OntClassHierarchyRootTest.java`  **测试** `testIsHierarchyRoot6`
+
+### 测试方法
+
+```java
+    public void testIsHierarchyRoot6(TestSpec spec) {
+        // D  THING    G
+        // |    |    / .
+        // C    F   K  .
+        // |    |   |  .
+        // B    E   H  .
+        // |         \ .
+        // A           G
+        OntModel m = TestModelFactory.createClassesDGCFKBEHAG(OntModelFactory.createModel(spec.inst));
+        OntClass Thing = OWL2.Thing.inModel(m).as(OntClass.class);
+        OntClass Nothing = OWL2.Nothing.inModel(m).as(OntClass.class);
+        m.getOntClass(TestModelFactory.NS + "F").addSuperClass(Thing);
+
+        Assertions.assertFalse(m.getOntClass(TestModelFactory.NS + "A").isHierarchyRoot());
+        Assertions.assertFalse(m.getOntClass(TestModelFactory.NS + "B").isHierarchyRoot());
+        Assertions.assertFalse(m.getOntClass(TestModelFactory.NS + "C").isHierarchyRoot());
+        Assertions.assertTrue(m.getOntClass(TestModelFactory.NS + "D").isHierarchyRoot());
+        Assertions.assertFalse(m.getOntClass(TestModelFactory.NS + "E").isHierarchyRoot());
+        Assertions.assertTrue(m.getOntClass(TestModelFactory.NS + "F").isHierarchyRoot());
+        Assertions.assertTrue(m.getOntClass(TestModelFactory.NS + "G").isHierarchyRoot());
+        Assertions.assertTrue(m.getOntClass(TestModelFactory.NS + "H").isHierarchyRoot());
+        Assertions.assertTrue(m.getOntClass(TestModelFactory.NS + "K").isHierarchyRoot());
+        Assertions.assertTrue(Thing.isHierarchyRoot());
+        Assertions.assertFalse(Nothing.isHierarchyRoot());
+    }
+```
+
+### 枚举声明 — `TestSpec`（jena/jena-ontapi/src/test/java/org/apache/jena/ontapi/TestSpec.java）
+
+```java
+public enum TestSpec {
+    OWL2_MEM(OntSpecification.OWL2_FULL_MEM),
+    OWL2_MEM_RDFS_INF(OntSpecification.OWL2_FULL_MEM_RDFS_INF),
+    OWL2_MEM_TRANS_INF(OntSpecification.OWL2_FULL_MEM_TRANS_INF),
+    OWL2_MEM_RULES_INF(OntSpecification.OWL2_FULL_MEM_RULES_INF),
+    OWL2_MEM_MINI_RULES_INF(OntSpecification.OWL2_FULL_MEM_MINI_RULES_INF),
+    OWL2_MEM_MICRO_RULES_INF(OntSpecification.OWL2_FULL_MEM_MICRO_RULES_INF),
+
+    OWL2_DL_MEM_RDFS_BUILTIN_INF(OntSpecification.OWL2_DL_MEM_BUILTIN_RDFS_INF),
+    OWL2_DL_MEM(OntSpecification.OWL2_DL_MEM),
+    OWL2_DL_MEM_RDFS_INF(OntSpecification.OWL2_DL_MEM_RDFS_INF),
+    OWL2_DL_MEM_TRANS_INF(OntSpecification.OWL2_DL_MEM_TRANS_INF),
+    OWL2_DL_MEM_RULES_INF(OntSpecification.OWL2_DL_MEM_RULES_INF),
+
+    OWL2_EL_MEM(OntSpecification.OWL2_EL_MEM),
+    OWL2_EL_MEM_RDFS_INF(OntSpecification.OWL2_EL_MEM_RDFS_INF),
+    OWL2_EL_MEM_TRANS_INF(OntSpecification.OWL2_EL_MEM_TRANS_INF),
+    OWL2_EL_MEM_RULES_INF(OntSpecification.OWL2_EL_MEM_RULES_INF),
+
+    OWL2_QL_MEM(OntSpecification.OWL2_QL_MEM),
+    OWL2_QL_MEM_RDFS_INF(OntSpecification.OWL2_QL_MEM_RDFS_INF),
+    OWL2_QL_MEM_TRANS_INF(OntSpecification.OWL2_QL_MEM_TRANS_INF),
+    OWL2_QL_MEM_RULES_INF(OntSpecification.OWL2_QL_MEM_RULES_INF),
+
+    OWL2_RL_MEM(OntSpecification.OWL2_RL_MEM),
+    OWL2_RL_MEM_RDFS_INF(OntSpecification.OWL2_RL_MEM_RDFS_INF),
+    OWL2_RL_MEM_TRANS_INF(OntSpecification.OWL2_RL_MEM_TRANS_INF),
+    OWL2_RL_MEM_RULES_INF(OntSpecification.OWL2_RL_MEM_RULES_INF),
+
+    OWL1_MEM(OntSpecification.OWL1_FULL_MEM),
+    OWL1_MEM_RDFS_INF(OntSpecification.OWL1_FULL_MEM_RDFS_INF),
+    OWL1_MEM_TRANS_INF(OntSpecification.OWL1_FULL_MEM_TRANS_INF),
+    OWL1_MEM_RULES_INF(OntSpecification.OWL1_FULL_MEM_RULES_INF),
+    OWL1_MEM_MINI_RULES_INF(OntSpecification.OWL1_FULL_MEM_MINI_RULES_INF),
+    OWL1_MEM_MICRO_RULES_INF(OntSpecification.OWL1_FULL_MEM_MICRO_RULES_INF),
+
+    OWL1_DL_MEM(OntSpecification.OWL1_DL_MEM),
+    OWL1_DL_MEM_RDFS_INF(OntSpecification.OWL1_DL_MEM_RDFS_INF),
+    OWL1_DL_MEM_TRANS_INF(OntSpecification.OWL1_DL_MEM_TRANS_INF),
+    OWL1_DL_MEM_RULES_INF(OntSpecification.OWL1_DL_MEM_RULES_INF),
+
+    OWL1_LITE_MEM(OntSpecification.OWL1_LITE_MEM),
+    OWL1_LITE_MEM_RDFS_INF(OntSpecification.OWL1_LITE_MEM_RDFS_INF),
+    OWL1_LITE_MEM_TRANS_INF(OntSpecification.OWL1_LITE_MEM_TRANS_INF),
+    OWL1_LITE_MEM_RULES_INF(OntSpecification.OWL1_LITE_MEM_RULES_INF),
+
+    RDFS_MEM(OntSpecification.RDFS_MEM),
+    RDFS_MEM_RDFS_INF(OntSpecification.RDFS_MEM_RDFS_INF),
+    RDFS_MEM_TRANS_INF(OntSpecification.RDFS_MEM_TRANS_INF),
+    ;
+    public final OntSpecification inst;
+
+    TestSpec(OntSpecification inst) {
+        this.inst = inst;
+    }
+
+    boolean isOWL1() {
+        return name().startsWith("OWL1");
+    }
+
+    boolean isOWL1Lite() {
+        return name().startsWith("OWL1_LITE");
+    }
+
+    boolean isOWL2() {
+        return name().startsWith("OWL2");
+    }
+
+    boolean isOWL2EL() {
+        return name().startsWith("OWL2_EL");
+    }
+
+    boolean isOWL2QL() {
+        return name().startsWith("OWL2_QL");
+    }
+
+    boolean isOWL2RL() {
+        return name().startsWith("OWL2_RL");
+    }
+
+    boolean isRules() {
+        return name().endsWith("_RULES_INF");
+    }
+
+    boolean isRDFS() {
+        return name().endsWith("_RDFS_INF");
+    }
+}
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-055  ·  CsvSource
+
+**项目** `NiFi`  **文件** `nifi/nifi-extension-bundles/nifi-aws-bundle/nifi-aws-processors/src/test/java/org/apache/nifi/processors/aws/cloudwatch/TestPutCloudWatchMetric.java`  **测试** `testValidRegionRoutesToSuccess`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @CsvSource({"us-east-1", "us-west-1", "us-east-2"})
+    public void testValidRegionRoutesToSuccess(String region) {
+        runner.setProperty(PutCloudWatchMetric.VALUE, "6");
+        runner.setProperty(PutCloudWatchMetric.REGION, region);
+        runner.assertValid();
+
+        runner.enqueue(new byte[] {});
+        runner.run();
+
+        assertEquals(1, mockPutCloudWatchMetric.putMetricDataCallCount);
+        runner.assertAllFlowFilesTransferred(PutCloudWatchMetric.REL_SUCCESS, 1);
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-058  ·  EnumSource
+
+**项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-simple/src/test/java/org/apache/commons/rng/simple/internal/RandomSourceInternalParametricTest.java`  **测试** `testCreateSeedBytesSizeIsPositiveAndMultipleOf4Or8`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @EnumSource
+    void testCreateSeedBytesSizeIsPositiveAndMultipleOf4Or8(RandomSourceInternal randomSourceInternal) {
+        // This should be the full length seed
+        final byte[] seed = randomSourceInternal.createSeedBytes(new SplitMix64(12345L));
+
+        final int size = seed.length;
+        Assertions.assertNotEquals(0, size, "Seed is empty");
+
+        if (randomSourceInternal.isNativeSeed(Integer.valueOf(0))) {
+            Assertions.assertEquals(4, size, "Expect 4 bytes for Integer");
+        } else if (randomSourceInternal.isNativeSeed(Long.valueOf(0))) {
+            Assertions.assertEquals(8, size, "Expect 8 bytes for Long");
+        } else if (randomSourceInternal.isNativeSeed(new int[0])) {
+            Assertions.assertEquals(0, size % 4, "Expect 4n bytes for int[]");
+        } else if (randomSourceInternal.isNativeSeed(new long[0])) {
+            Assertions.assertEquals(0, size % 8, "Expect 8n bytes for long[]");
+        } else {
+            Assertions.fail("Unknown native seed type");
+        }
+    }
+```
+
+### 枚举声明 — `RandomSourceInternal`（commons-rng/commons-rng-simple/src/main/java/org/apache/commons/rng/simple/internal/ProviderBuilder.java）
+
+```java
+    public enum RandomSourceInternal {
+        /** Source of randomness is {@link JDKRandom}. */
+        JDK(JDKRandom.class,
+            1,
+            NativeSeedType.LONG),
+        /** Source of randomness is {@link Well512a}. */
+        WELL_512_A(Well512a.class,
+                   16, 0, 16,
+                   NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well1024a}. */
+        WELL_1024_A(Well1024a.class,
+                    32, 0, 32,
+                    NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well19937a}. */
+        WELL_19937_A(Well19937a.class,
+                     624, 0, 623,
+                     NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well19937c}. */
+        WELL_19937_C(Well19937c.class,
+                     624, 0, 623,
+                     NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well44497a}. */
+        WELL_44497_A(Well44497a.class,
+                     1391, 0, 1390,
+                     NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link Well44497b}. */
+        WELL_44497_B(Well44497b.class,
+                     1391, 0, 1390,
+                     NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link MersenneTwister}. */
+        MT(MersenneTwister.class,
+           624,
+           NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link ISAACRandom}. */
+        ISAAC(ISAACRandom.class,
+              256,
+              NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link SplitMix64}. */
+        SPLIT_MIX_64(SplitMix64.class,
+                     1,
+                     NativeSeedType.LONG),
+        /** Source of randomness is {@link XorShift1024Star}. */
+        XOR_SHIFT_1024_S(XorShift1024Star.class,
+                         16, 0, 16,
+                         NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link TwoCmres}. */
+        TWO_CMRES(TwoCmres.class,
+                  1,
+                  NativeSeedType.INT),
+        /**
+         * Source of randomness is {@link TwoCmres} with explicit selection
+         * of the two subcycle generators.
+         */
+        TWO_CMRES_SELECT(TwoCmres.class,
+                         1,
+                         NativeSeedType.INT,
+                         Integer.TYPE,
+                         Integer.TYPE),
+        /** Source of randomness is {@link MersenneTwister64}. */
+        MT_64(MersenneTwister64.class,
+              312,
+              NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link MultiplyWithCarry256}. */
+        MWC_256(MultiplyWithCarry256.class,
+                257, 0, 257,
+                NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link KISSRandom}. */
+        KISS(KISSRandom.class,
+             // If zero in initial 3 positions the output is a simple LCG
+             4, 0, 3,
+             NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XorShift1024StarPhi}. */
+        XOR_SHIFT_1024_S_PHI(XorShift1024StarPhi.class,
+                             16, 0, 16,
+                             NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoRoShiRo64Star}. */
+        XO_RO_SHI_RO_64_S(XoRoShiRo64Star.class,
+                          2, 0, 2,
+                          NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XoRoShiRo64StarStar}. */
+        XO_RO_SHI_RO_64_SS(XoRoShiRo64StarStar.class,
+                           2, 0, 2,
+                           NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XoShiRo128Plus}. */
+        XO_SHI_RO_128_PLUS(XoShiRo128Plus.class,
+                           4, 0, 4,
+                           NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XoShiRo128StarStar}. */
+        XO_SHI_RO_128_SS(XoShiRo128StarStar.class,
+                         4, 0, 4,
+                         NativeSeedType.INT_ARRAY),
+        /** Source of randomness is {@link XoRoShiRo128Plus}. */
+        XO_RO_SHI_RO_128_PLUS(XoRoShiRo128Plus.class,
+                              2, 0, 2,
+                              NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoRoShiRo128StarStar}. */
+        XO_RO_SHI_RO_128_SS(XoRoShiRo128StarStar.class,
+                            2, 0, 2,
+                            NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoShiRo256Plus}. */
+        XO_SHI_RO_256_PLUS(XoShiRo256Plus.class,
+                           4, 0, 4,
+                           NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoShiRo256StarStar}. */
+        XO_SHI_RO_256_SS(XoShiRo256StarStar.class,
+                         4, 0, 4,
+                         NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoShiRo512Plus}. */
+        XO_SHI_RO_512_PLUS(XoShiRo512Plus.class,
+                           8, 0, 8,
+                           NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link XoShiRo512StarStar}. */
+        XO_SHI_RO_512_SS(XoShiRo512StarStar.class,
+                         8, 0, 8,
+                         NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link PcgXshRr32}. */
+        PCG_XSH_RR_32(PcgXshRr32.class,
+                2,
+                NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link PcgXshRs32}. */
+        PCG_XSH_RS_32(PcgXshRs32.class,
+                2,
+                NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link PcgRxsMXs64}. */
+        PCG_RXS_M_XS_64(PcgRxsMXs64.class,
+                2,
+                NativeSeedType.LONG_ARRAY),
+        /** Source of randomness is {@link PcgMcgXshRr32}. */
+        PCG_MCG_XSH_RR_32(PcgMcgXshRr32.class,
+                1,
+                NativeSeedType.LONG),
+        /** Source of randomness is {@link PcgMcgXshRs32}. */
+        PCG_MCG_XSH_RS_32(PcgMcgXshRs32.class,
+                1,
+                NativeSeedType.LONG),
+        /** Source of randomness is {@link MiddleSquareWeylSequence}. */
+        MSWS(MiddleSquareWeylSequence.class,
+             // Many partially zero seeds can create low quality initial output.
+             // The Weyl increment cascades bits into the random state so ideally it
+             // has a high number of bit transitions. Minimally ensure it is non-zero.
+             3, 2, 3,
+             NativeSeedType.LONG_ARRAY) {
+            @Override
+            protected Object createSeed() {
+                return createMswsSeed(SeedFactory.createLong());
+            }
+
+            @Override
+            protected Object convertSeed(Object seed) {
+                // Allow seeding with primitives to generate a good seed
+                if (seed instanceof Integer) {
+                    return createMswsSeed((Integer) seed);
+                } else if (seed instanceof Long) {
+                    return createMswsSeed((Long) seed);
+                }
+                // Other types (e.g. the native long[]) are handled by the default conversion
+                return super.convertSeed(seed);
+            }
+
+            @Override
+    // … 省略 460 行
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-061  ·  EnumSource
+
+**项目** `NiFi`  **文件** `nifi/nifi-system-tests/nifi-system-test-suite/src/test/java/org/apache/nifi/tests/system/provenance/ReplayProvenanceIT.java`  **测试** `testReplayLastEvent`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @EnumSource(ReplayEventNodes.class)
+    public void testReplayLastEvent(final ReplayEventNodes nodes) throws NiFiClientException, IOException, InterruptedException {
+        ProcessorEntity generate = getClientUtil().createProcessor("GenerateFlowFile");
+        ProcessorEntity terminate = getClientUtil().createProcessor("TerminateFlowFile");
+        ConnectionEntity connection = getClientUtil().createConnection(generate, terminate, "success");
+
+        // Run Generate once
+        getClientUtil().startProcessor(generate);
+        waitForQueueCount(connection.getId(), getNumberOfNodes());
+        getClientUtil().stopProcessor(generate);
+
+        // Run terminate once
+        getClientUtil().startProcessor(terminate);
+        waitForQueueCount(connection.getId(), 0);
+        getClientUtil().stopProcessor(terminate);
+
+        // Replay last event for terminate and ensure that data is queued up.
+        final ReplayLastEventResponseEntity replayResponse = getNifiClient().getProvenanceClient().replayLastEvent(terminate.getId(), nodes);
+        assertNull(replayResponse.getAggregateSnapshot().getFailureExplanation());
+        assertEquals(Boolean.TRUE, replayResponse.getAggregateSnapshot().getEventAvailable());
+        final int expectedEventsPlayed = (nodes == ReplayEventNodes.PRIMARY) ? 1 : getNumberOfNodes();
+        assertEquals(expectedEventsPlayed, replayResponse.getAggregateSnapshot().getEventsReplayed().size());
+
+        waitForQueueCount(connection.getId(), expectedEventsPlayed);
+
+        // Attempt to replay event for generate - it should provide an error because this is a source processor whose event cannot be replayed
+        final ReplayLastEventResponseEntity generateReplayResponse = getNifiClient().getProvenanceClient().replayLastEvent(generate.getId(), nodes);
+        final String failureExplanation = generateReplayResponse.getAggregateSnapshot().getFailureExplanation();
+        assertNotNull(failureExplanation);
+
+        // The failure text is not provided if multiple nodes failed, as it can get too unwieldy to understand.
+        final String expectedFailureText = (nodes == ReplayEventNodes.ALL && getNumberOfNodes() > 1) ? "See logs for more details" : "Source FlowFile Queue";
+        assertTrue(failureExplanation.contains(expectedFailureText), failureExplanation);
+    }
+```
+
+### 枚举声明 — `ReplayEventNodes`（nifi/nifi-toolkit/nifi-toolkit-client/src/main/java/org/apache/nifi/toolkit/client/ProvenanceClient.java）
+
+```java
+    enum ReplayEventNodes {
+        PRIMARY,
+        ALL;
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-064  ·  ValueSource
+
+**项目** `Hive`  **文件** `hive/iceberg/iceberg-catalog/src/test/java/org/apache/iceberg/hive/TestHiveCatalog.java`  **测试** `testReplaceTxnBuilder`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testReplaceTxnBuilder(int formatVersion) {
+    Schema schema = getTestSchema();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.resolve("tbl").toString();
+
+    try {
+      Transaction createTxn = catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .withLocation(location)
+          .withProperty("key1", "value1")
+          .withProperty(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+          .createOrReplaceTransaction();
+      createTxn.commitTransaction();
+
+      Table table = catalog.loadTable(tableIdent);
+      assertThat(table.spec().fields()).hasSize(1);
+
+      String newLocation = temp.resolve("tbl-2").toString();
+
+      Transaction replaceTxn = catalog.buildTable(tableIdent, schema)
+          .withProperty("key2", "value2")
+          .withLocation(newLocation)
+          .replaceTransaction();
+      replaceTxn.commitTransaction();
+
+      table = catalog.loadTable(tableIdent);
+      assertThat(table.location()).isEqualTo(newLocation);
+      assertThat(table.currentSnapshot()).isNull();
+      if (formatVersion == 1) {
+        PartitionSpec v1Expected =
+            PartitionSpec.builderFor(table.schema())
+                .alwaysNull("data", "data_bucket")
+                .withSpecId(1)
+                .build();
+        assertThat(table.spec())
+            .as("Table should have a spec with one void field")
+            .isEqualTo(v1Expected);
+      } else {
+        assertThat(table.spec().isUnpartitioned()).as("Table spec must be unpartitioned").isTrue();
+      }
+
+      assertThat(table.properties()).containsEntry("key1", "value1");
+      assertThat(table.properties()).containsEntry("key2", "value2");
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-067  ·  MethodSource
+
+**项目** `ZooKeeper`  **文件** `zookeeper/zookeeper-server/src/test/java/org/apache/zookeeper/common/JKSFileLoaderTest.java`  **测试** `testLoadKeyStoreWithNullFilePath`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("data")
+    public void testLoadKeyStoreWithNullFilePath(
+            X509KeyType caKeyType, X509KeyType certKeyType, String keyPassword, Integer paramIndex)
+            throws Exception {
+        init(caKeyType, certKeyType, keyPassword, paramIndex);
+        assertThrows(NullPointerException.class, () -> {
+            new JKSFileLoader.Builder().setKeyStorePassword(x509TestContext.getKeyStorePassword()).build().loadKeyStore();
+        });
+    }
+```
+
+### Parameter provider — `data`（zookeeper/zookeeper-contrib/zookeeper-contrib-rest/src/test/java/org/apache/zookeeper/server/jersey/CreateTest.java）
+
+```java
+    @Parameters
+    public static Collection<Object[]> data() throws Exception {
+        String baseZnode = Base.createBaseZNode();
+
+        return Arrays.asList(new Object[][] {
+          {MediaType.APPLICATION_JSON,
+              baseZnode, "foo bar", "utf8",
+              ClientResponse.Status.CREATED,
+              new ZPath(baseZnode + "/foo bar"), null,
+              false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t1", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-t1"),
+              null, false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t1", "utf8",
+              ClientResponse.Status.CONFLICT, null, null, false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t2", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-t2"),
+              "".getBytes(), false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t2", "utf8",
+              ClientResponse.Status.CONFLICT, null, null, false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t3", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-t3"),
+              "foo".getBytes(), false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t3", "utf8",
+              ClientResponse.Status.CONFLICT, null, null, false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-t4", "base64",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-t4"),
+              "foo".getBytes(), false },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-"), null,
+              true },
+          {MediaType.APPLICATION_JSON, baseZnode, "c-", "utf8",
+              ClientResponse.Status.CREATED, new ZPath(baseZnode + "/c-"), null,
+              true }
+          });
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-070  ·  EnumSource
+
+**项目** `Ozone`  **文件** `ozone/hadoop-hdds/common/src/test/java/org/apache/hadoop/ozone/common/TestChecksumCache.java`  **测试** `testComputeChecksum`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @EnumSource(ChecksumType.class)
+  void testComputeChecksum(ChecksumType checksumType) throws Exception {
+    final int bytesPerChecksum = 16;
+    ChecksumCache checksumCache = new ChecksumCache(bytesPerChecksum);
+
+    final int size = 66;
+    byte[] byteArray = new byte[size];
+    // Fill byteArray with bytes from 0 to 127 for deterministic testing
+    for (int i = 0; i < size; i++) {
+      byteArray[i] = (byte) (i % 128);
+    }
+
+    final Function<ByteBuffer, ByteString> function = Algorithm.valueOf(checksumType).newChecksumFunction();
+
+    int iEnd = size / bytesPerChecksum + (size % bytesPerChecksum == 0 ? 0 : 1);
+    List<ByteString> lastRes = null;
+    for (int i = 0; i < iEnd; i++) {
+      int byteBufferLength = Integer.min(byteArray.length, bytesPerChecksum * (i + 1));
+      ByteBuffer byteBuffer = ByteBuffer.wrap(byteArray, 0, byteBufferLength);
+
+      try (ChunkBuffer chunkBuffer = ChunkBuffer.wrap(byteBuffer.asReadOnlyBuffer())) {
+        List<ByteString> res = checksumCache.computeChecksum(chunkBuffer, function);
+        System.out.println(res);
+        // Verify that every entry in the res list except the last one is the same as the one in lastRes list
+        if (i > 0) {
+          for (int j = 0; j < res.size() - 1; j++) {
+            Assertions.assertEquals(lastRes.get(j), res.get(j));
+          }
+        }
+        lastRes = res;
+      }
+    }
+
+    // Sanity check
+    checksumCache.clear();
+  }
+```
+
+### 枚举声明
+
+> ⚠️ 未能定位枚举声明。
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-073  ·  MethodSource
+
+**项目** `Commons-RDF`  **文件** `commons-rdf/commons-rdf-integration-tests/src/test/java/org/apache/commons/rdf/integrationtests/AllToAllTest.java`  **测试** `testAddTriplesFromOtherFactory`
+
+### 测试方法
+
+```java
+    @MethodSource("data")
+    @ParameterizedTest(name = "{index}: {0} -> {1}")
+    void testAddTriplesFromOtherFactory(final Class<? extends RDF> from, final Class<? extends RDF> to) throws Exception {
+        RDF nodeFactory = from.getConstructor().newInstance();
+        RDF graphFactory = to.newInstance();
+
+        try (final Graph g = graphFactory.createGraph()) {
+            final BlankNode s = nodeFactory.createBlankNode();
+            final IRI p = nodeFactory.createIRI("http://example.com/p");
+            final Literal o = nodeFactory.createLiteral("Hello");
+
+            final Triple srcT1 = nodeFactory.createTriple(s, p, o);
+            // This should work even with BlankNode as they are from the same
+            // factory
+            assertEquals(s, srcT1.getSubject());
+            assertEquals(p, srcT1.getPredicate());
+            assertEquals(o, srcT1.getObject());
+            g.add(srcT1);
+
+            // what about the blankNode within?
+            assertTrue(g.contains(srcT1));
+            final Triple t1 = g.stream().findAny().get();
+
+            // Can't make assumptions about BlankNode equality - it might
+            // have been mapped to a different BlankNode.uniqueReference()
+            // assertEquals(srcT1, t1);
+            // assertEquals(s, t1.getSubject());
+            assertEquals(p, t1.getPredicate());
+            assertEquals(o, t1.getObject());
+
+            final IRI s2 = nodeFactory.createIRI("http://example.com/s2");
+            final Triple srcT2 = nodeFactory.createTriple(s2, p, s);
+            g.add(srcT2);
+            assertTrue(g.contains(srcT2));
+
+            // This should be mapped to the same BlankNode
+            // (even if it has a different identifier), e.g.
+            // we should be able to do:
+
+            final Triple t2 = g.stream(s2, p, null).findAny().get();
+
+            final BlankNode bnode = (BlankNode) t2.getObject();
+            // And that (possibly adapted) BlankNode object should
+            // match the subject of t1 statement
+            assertEquals(bnode, t1.getSubject());
+            // And can be used as a key:
+            final Triple t3 = g.stream(bnode, p, null).findAny().get();
+            assertEquals(t1, t3);
+        }
+    }
+```
+
+### Parameter provider — 同文件内的 `data`
+
+```java
+    @SuppressWarnings("rawtypes")
+    public static Collection<Object[]> data() {
+        final List<Class> factories = Arrays.asList(SimpleRDF.class, JenaRDF.class, RDF4J.class, JsonLdRDF.class);
+        final Collection<Object[]> allToAll = new ArrayList<>();
+        for (final Class from : factories) {
+            for (final Class to : factories) {
+                // NOTE: we deliberately include self-to-self here
+                // to test two instances of the same implementation
+                allToAll.add(new Object[] { from, to });
+            }
+        }
+        return allToAll;
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-076  ·  MethodSource
+
+**项目** `Hudi`  **文件** `hudi/hudi-spark-datasource/hudi-spark/src/test/java/org/apache/hudi/functional/TestBufferedRecordMerger.java`  **测试** `testRegularMerging`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @MethodSource("mergeModeAndStageProvider")
+  void testRegularMerging(RecordMergeMode mergeMode, PartialUpdateMode updateMode, MergeStage stage) throws IOException {
+    if (updateMode == PartialUpdateMode.FILL_UNAVAILABLE) {
+      props.put(
+          HoodieTableConfig.RECORD_MERGE_PROPERTY_PREFIX + PARTIAL_UPDATE_UNAVAILABLE_VALUE,
+          IGNORE_MARKERS_VALUE);
+    }
+
+    if (stage == MergeStage.DELTA_MERGE) {
+      runDeltaMerge(mergeMode, updateMode);
+    } else if (stage == MergeStage.FINAL_MERGE) {
+      runFinalMerge(mergeMode, updateMode);
+    } else {
+      runDeltaDeleteMerge(mergeMode, updateMode);
+    }
+  }
+```
+
+### Parameter provider — 同文件内的 `mergeModeAndStageProvider`
+
+```java
+
+  private static Stream<Arguments> mergeModeAndStageProvider() {
+    List<MergeStage> stages = Arrays.asList(MergeStage.values());
+    return Arrays.stream(RecordMergeMode.values())
+        .filter(mode -> mode == RecordMergeMode.COMMIT_TIME_ORDERING || mode == RecordMergeMode.EVENT_TIME_ORDERING)
+        .flatMap(mode ->
+            Arrays.stream(PartialUpdateMode.values())
+                .flatMap(updateMode ->
+                    stages.stream()
+                        .map(stage -> Arguments.of(mode, updateMode, stage))
+                )
+        )
+        .filter(args -> {
+          PartialUpdateMode updateMode = (PartialUpdateMode) args.get()[1];
+          return updateMode != PartialUpdateMode.IGNORE_DEFAULTS;
+        });
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-079  ·  MethodSource
+
+**项目** `Commons-Lang`  **文件** `commons-lang/src/test/java/org/apache/commons/lang3/time/FastDateParserTest.java`  **测试** `testAmPm`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource(DATE_PARSER_PARAMETERS)
+    void testAmPm(final TriFunction<String, TimeZone, Locale, DateParser> dpProvider) throws ParseException {
+        final Calendar cal = Calendar.getInstance(NEW_YORK, Locale.US);
+        cal.clear();
+
+        final DateParser h = getInstance(dpProvider, "yyyy-MM-dd hh a mm:ss", NEW_YORK, Locale.US);
+        final DateParser K = getInstance(dpProvider, "yyyy-MM-dd KK a mm:ss", NEW_YORK, Locale.US);
+        final DateParser k = getInstance(dpProvider, "yyyy-MM-dd kk:mm:ss", NEW_YORK, Locale.US);
+        final DateParser H = getInstance(dpProvider, "yyyy-MM-dd HH:mm:ss", NEW_YORK, Locale.US);
+
+        cal.set(2010, Calendar.AUGUST, 1, 0, 33, 20);
+        assertEquals(cal.getTime(), h.parse("2010-08-01 12 AM 33:20"));
+        assertEquals(cal.getTime(), K.parse("2010-08-01 0 AM 33:20"));
+        assertEquals(cal.getTime(), k.parse("2010-08-01 00:33:20"));
+        assertEquals(cal.getTime(), H.parse("2010-08-01 00:33:20"));
+
+        cal.set(2010, Calendar.AUGUST, 1, 3, 33, 20);
+        assertEquals(cal.getTime(), h.parse("2010-08-01 3 AM 33:20"));
+        assertEquals(cal.getTime(), K.parse("2010-08-01 3 AM 33:20"));
+        assertEquals(cal.getTime(), k.parse("2010-08-01 03:33:20"));
+        assertEquals(cal.getTime(), H.parse("2010-08-01 03:33:20"));
+
+        cal.set(2010, Calendar.AUGUST, 1, 15, 33, 20);
+        assertEquals(cal.getTime(), h.parse("2010-08-01 3 PM 33:20"));
+        assertEquals(cal.getTime(), K.parse("2010-08-01 3 PM 33:20"));
+        assertEquals(cal.getTime(), k.parse("2010-08-01 15:33:20"));
+        assertEquals(cal.getTime(), H.parse("2010-08-01 15:33:20"));
+
+        cal.set(2010, Calendar.AUGUST, 1, 12, 33, 20);
+        assertEquals(cal.getTime(), h.parse("2010-08-01 12 PM 33:20"));
+        assertEquals(cal.getTime(), K.parse("2010-08-01 0 PM 33:20"));
+        assertEquals(cal.getTime(), k.parse("2010-08-01 12:33:20"));
+        assertEquals(cal.getTime(), H.parse("2010-08-01 12:33:20"));
+    }
+```
+
+### Parameter provider
+
+> ⚠️ 未能自动定位 provider，请对照上方注解自行判断。
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-082  ·  MethodSource
+
+**项目** `Thrift`  **文件** `thrift/lib/java/src/test/java/org/apache/thrift/test/voidmethexceptions/TestVoidMethExceptions.java`  **测试** `testAsyncClientMustReturnResultReturnVoidNoThrowsTApplicationException`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @MethodSource("provideParameters")
+  public void testAsyncClientMustReturnResultReturnVoidNoThrowsTApplicationException(
+      TestParameters p) throws Throwable {
+    try (AutoCloseable ignored = p.start()) {
+      p.checkAsyncClient(
+          "returnVoidNoThrowsTApplicationException",
+          "sent msg",
+          false,
+          null,
+          null,
+          null,
+          TAppService01.AsyncClient::returnVoidNoThrowsTApplicationException);
+    }
+  }
+```
+
+### Parameter provider — 同文件内的 `provideParameters`
+
+```java
+
+  private static Stream<TestParameters> provideParameters() throws Exception {
+    return Stream.<TestParameters>builder()
+        .add(new TestParameters(ServerImplementationType.SYNC_SERVER))
+        .add(new TestParameters(ServerImplementationType.ASYNC_SERVER))
+        .build();
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-085  ·  MethodSource
+
+**项目** `Thrift`  **文件** `thrift/lib/java/src/test/java/org/apache/thrift/test/voidmethexceptions/TestVoidMethExceptions.java`  **测试** `testAsyncClientMustReturnResultReturnVoidNoThrowsRuntimeException`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @MethodSource("provideParameters")
+  public void testAsyncClientMustReturnResultReturnVoidNoThrowsRuntimeException(TestParameters p)
+      throws Throwable {
+    try (AutoCloseable ignored = p.start()) {
+      p.checkAsyncClient(
+          "returnVoidNoThrowsRuntimeException",
+          "sent msg",
+          false,
+          null,
+          null,
+          null,
+          TAppService01.AsyncClient::returnVoidNoThrowsRuntimeException);
+    }
+  }
+```
+
+### Parameter provider — 同文件内的 `provideParameters`
+
+```java
+
+  private static Stream<TestParameters> provideParameters() throws Exception {
+    return Stream.<TestParameters>builder()
+        .add(new TestParameters(ServerImplementationType.SYNC_SERVER))
+        .add(new TestParameters(ServerImplementationType.ASYNC_SERVER))
+        .build();
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-088  ·  MethodSource
+
+**项目** `commons-statistics`  **文件** `commons-statistics/commons-statistics-descriptive/src/test/java/org/apache/commons/statistics/descriptive/DoubleStatisticsTest.java`  **测试** `testIncompatibleCombineThrows`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource
+    void testIncompatibleCombineThrows(EnumSet<Statistic> stat1, EnumSet<Statistic> stat2) {
+        final double[] v1 = {1, 2, 3.5, 6};
+        final double[] v2 = {3, 4, 5};
+        final DoubleStatistics statistics = DoubleStatistics.of(stat1, v1);
+        final DoubleStatistics other = DoubleStatistics.of(stat2, v2);
+        // Store values
+        final double[] values = stat1.stream().mapToDouble(statistics::getAsDouble).toArray();
+        Assertions.assertThrows(IllegalArgumentException.class, () -> statistics.combine(other),
+            () -> stat1 + " " + stat2);
+        // Values should be unchanged
+        final int[] i = {0};
+        stat1.stream().forEach(
+            s -> Assertions.assertEquals(values[i[0]++], statistics.getAsDouble(s), () -> s + " changed"));
+    }
+```
+
+### Parameter provider
+
+> ⚠️ 未能自动定位 provider，请对照上方注解自行判断。
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-091  ·  CsvSource
+
+**项目** `Hudi`  **文件** `hudi/hudi-hadoop-common/src/test/java/org/apache/hudi/io/hadoop/TestHoodieHFileReaderWriter.java`  **测试** `testHoodieHFileCompatibility`
+
+### 测试方法
+
+```java
+  public void testHoodieHFileCompatibility(String hfilePrefix, boolean useBloomFilter) throws IOException {
+    // This fixture is generated from TestHoodieReaderWriterBase#testWriteReadPrimitiveRecord()
+    // using different Hudi releases
+    String simpleHFile = hfilePrefix + SIMPLE_SCHEMA_HFILE_SUFFIX;
+    // This fixture is generated from TestHoodieReaderWriterBase#testWriteReadComplexRecord()
+    // using different Hudi releases
+    String complexHFile = hfilePrefix + COMPLEX_SCHEMA_HFILE_SUFFIX;
+    // This fixture is generated from TestBootstrapIndex#testBootstrapIndex()
+    // using different Hudi releases.  The file is copied from .hoodie/.aux/.bootstrap/.partitions/
+    String bootstrapIndexFile = hfilePrefix + BOOTSTRAP_INDEX_HFILE_SUFFIX;
+
+    FileSystem fs = HadoopFSUtils.getFs(getFilePath().toString(), new Configuration());
+    byte[] content = readHFileFromResources(simpleHFile);
+    verifyHFileReader(
+        content, hfilePrefix, true, useBloomFilter, NUM_RECORDS_FIXTURE);
+
+    HoodieStorage storage = HoodieTestUtils.getStorage(getFilePath());
+    try (HoodieAvroHFileReaderImplBase hfileReader = createHFileReader(storage, content, useBloomFilter)) {
+      Schema avroSchema =
+          getSchemaFromResource(TestHoodieReaderWriterBase.class, "/exampleSchema.avsc");
+      assertEquals(NUM_RECORDS_FIXTURE, hfileReader.getTotalRecords());
+      verifySimpleRecords(hfileReader.getRecordIterator(avroSchema));
+    }
+
+    content = readHFileFromResources(complexHFile);
+    verifyHFileReader(
+        content, hfilePrefix, true, useBloomFilter, NUM_RECORDS_FIXTURE);
+    try (HoodieAvroHFileReaderImplBase hfileReader = createHFileReader(storage, content, useBloomFilter)) {
+      Schema avroSchema =
+          getSchemaFromResource(TestHoodieReaderWriterBase.class, "/exampleSchemaWithUDT.avsc");
+      assertEquals(NUM_RECORDS_FIXTURE, hfileReader.getTotalRecords());
+      verifySimpleRecords(hfileReader.getRecordIterator(avroSchema));
+    }
+
+    content = readHFileFromResources(bootstrapIndexFile);
+    verifyHFileReader(
+        content, hfilePrefix, false, useBloomFilter, 4);
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-094  ·  ValueSource
+
+**项目** `Commons-Codec`  **文件** `commons-codec/src/test/java/org/apache/commons/codec/binary/Base64Test.java`  **测试** `testRfc4648Section10DecodeEncode`
+
+### 测试方法
+
+```java
+    void testRfc4648Section10DecodeEncode(final String input) {
+        testDecodeEncode(input);
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-097  ·  MethodSource
+
+**项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-core/src/test/java/org/apache/commons/rng/core/JumpableProvidersParametricTest.java`  **测试** `testLongJumpReturnsACopy`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("getJumpableProviders")
+    void testLongJumpReturnsACopy(JumpableUniformRandomProvider generator) {
+        assertJumpReturnsACopy(getLongJumpFunction(generator), generator);
+    }
+```
+
+### Parameter provider — 同文件内的 `getJumpableProviders`
+
+```java
+    private static Iterable<JumpableUniformRandomProvider> getJumpableProviders() {
+        return ProvidersList.listJumpable();
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-100  ·  EnumSource
+
+**项目** `Commons-Imaging`  **文件** `commons-imaging/src/test/java/org/apache/commons/imaging/ImageFormatsTest.java`  **测试** `testDefaultExtension`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @EnumSource(ImageFormats.class)
+    void testDefaultExtension(final ImageFormats imageFormats) {
+        assertNotNull(imageFormats.getDefaultExtension());
+        assertFalse(imageFormats.getDefaultExtension().isEmpty());
+    }
+```
+
+### 枚举声明 — `ImageFormats`（commons-imaging/src/main/java/org/apache/commons/imaging/ImageFormats.java）
+
+```java
+public enum ImageFormats implements ImageFormat {
+
+    // @formatter:off
+    UNKNOWN("bin"),
+    BMP("bmp", "dib"),
+    DCX("dcx"),
+    GIF("gif"),
+    ICNS("icns"),
+    ICO("ico"),
+    JBIG2("jbig2"),
+    JPEG("jpg", "jpeg"),
+    PAM("pam"),
+    PSD("psd"),
+    PBM("pbm"),
+    PGM("pgm"),
+    PNM("pnm"),
+    PPM("ppm"),
+    PCX("pcx", "pcc"),
+    PNG("png"),
+    RGBE("hdr", "pic"),
+    TGA("tga"),
+    TIFF("tif", "tiff"),
+    WBMP("wbmp"),
+    WEBP("webp"),
+    XBM("xbm"),
+    XPM("xpm");
+    // @formatter:on
+
+    private final String[] extensions;
+
+    ImageFormats(final String... extensions) {
+        this.extensions = Objects.requireNonNull(extensions);
+    }
+
+    @Override
+    public String getDefaultExtension() {
+        return extensions[0];
+    }
+
+    @Override
+    public String[] getExtensions() {
+        return this.extensions.clone();
+    }
+
+    @Override
+    public String getName() {
+        return name();
+    }
+}
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-103  ·  CsvSource
+
+**项目** `Qpid`  **文件** `qpid-broker-j/broker-plugins/access-control/src/test/java/org/apache/qpid/server/security/access/config/RuleTest.java`  **测试** `isOwner`
+
+### 测试方法
+
+```java
+    void isOwner(final String identity, final boolean isForOwner, final boolean isForOwnerOrAll)
+    {
+        final Rule rule = new Rule.Builder().withIdentity(identity).build();
+        assertEquals(isForOwner, rule.isForOwner());
+        assertEquals(isForOwnerOrAll, rule.isForOwnerOrAll());
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-106  ·  ValueSource
+
+**项目** `Hive`  **文件** `hive/iceberg/iceberg-catalog/src/test/java/org/apache/iceberg/hive/HiveCreateReplaceTableTest.java`  **测试** `testReplaceTableTxn`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void testReplaceTableTxn(int formatVersion) {
+    catalog.createTable(
+        TABLE_IDENTIFIER,
+        SCHEMA,
+        SPEC,
+        tableLocation,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
+    assertThat(catalog.tableExists(TABLE_IDENTIFIER)).as("Table should exist").isTrue();
+
+    Transaction txn = catalog.newReplaceTableTransaction(TABLE_IDENTIFIER, SCHEMA, false);
+    txn.commitTransaction();
+
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    if (formatVersion == 1) {
+      PartitionSpec v1Expected =
+          PartitionSpec.builderFor(table.schema()).alwaysNull("id", "id").withSpecId(1).build();
+      assertThat(table.spec())
+          .as("Table should have a spec with one void field")
+          .isEqualTo(v1Expected);
+    } else {
+      assertThat(table.spec().isUnpartitioned()).as("Table spec must be unpartitioned").isTrue();
+    }
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-109  ·  MethodSource
+
+**项目** `Thrift`  **文件** `thrift/lib/java/src/test/java/org/apache/thrift/test/voidmethexceptions/TestVoidMethExceptions.java`  **测试** `testSyncClientMustReturnResultReturnString`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @MethodSource("provideParameters")
+  public void testSyncClientMustReturnResultReturnString(TestParameters p) throws Exception {
+    try (AutoCloseable ignored = p.start()) {
+      p.checkSyncClient(
+          "returnString",
+          "sent msg",
+          false,
+          "sent msg",
+          null,
+          null,
+          TAppService01.Iface::returnString);
+    }
+  }
+```
+
+### Parameter provider — 同文件内的 `provideParameters`
+
+```java
+
+  private static Stream<TestParameters> provideParameters() throws Exception {
+    return Stream.<TestParameters>builder()
+        .add(new TestParameters(ServerImplementationType.SYNC_SERVER))
+        .add(new TestParameters(ServerImplementationType.ASYNC_SERVER))
+        .build();
+  }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-112  ·  ValueSource
+
+**项目** `NiFi`  **文件** `nifi/nifi-commons/nifi-record-path/src/test/java/org/apache/nifi/record/path/TestRecordFieldRemover.java`  **测试** `testNotIsPathRemovalRequiresSchemaModification`
+
+### 测试方法
+
+```java
+    void testNotIsPathRemovalRequiresSchemaModification(final String input) {
+        assertFalse(new RecordFieldRemover.RecordPathRemovalProperties("/addresses" + input)
+                .isRemovingFieldsNotJustElementsFromWithinCollection());
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-115  ·  MethodSource
+
+**项目** `Commons-CLI`  **文件** `commons-cli/src/test/java/org/apache/commons/cli/ValueTest.java`  **测试** `testLongOptionalNArgValuesWithOption`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("parsers")
+    void testLongOptionalNArgValuesWithOption(final CommandLineParser parser) throws Exception {
+        final CommandLine cmd = parser.parse(opts, new String[] { "--hide", "house", "hair", "head" });
+        assertNull(cmd.getOptionValues(NULL_OPTION));
+        assertNull(cmd.getOptionValues(NULL_STRING));
+        assertTrue(cmd.hasOption(opts.getOption("hide")));
+        assertEquals("house", cmd.getOptionValue(opts.getOption("hide")));
+        assertEquals("house", cmd.getOptionValues(opts.getOption("hide"))[0]);
+        assertEquals("hair", cmd.getOptionValues(opts.getOption("hide"))[1]);
+        assertEquals(cmd.getArgs().length, 1);
+        assertEquals("head", cmd.getArgs()[0]);
+    }
+```
+
+### Parameter provider — 同文件内的 `parsers`
+
+```java
+
+    protected static Stream<CommandLineParser> parsers() {
+        return Stream.of(new DefaultParser(), new PosixParser());
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-118  ·  ValueSource
+
+**项目** `XMLBeans`  **文件** `xmlbeans/src/test/java/xmlcursor/xquery/detailed/StoreTestsXqrl.java`  **测试** `doSaveTest`
+
+### 测试方法
+
+```java
+    void doSaveTest(String xml) throws Exception {
+        if (xml.startsWith("<bar>")) xml = xml.replace("s", "<foo>aaa</foo>bbb");
+
+        try (XmlCursor c = XmlObject.Factory.parse(xml).newCursor();
+             XmlCursor cq = c.execQuery(".")) {
+            String s = cq.xmlText();
+            assertEquals(s, xml);
+        }
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-121  ·  EnumSource
+
+**项目** `Commons-Numbers`  **文件** `commons-numbers/commons-numbers-gamma/src/test/java/org/apache/commons/numbers/gamma/BoostBetaTest.java`  **测试** `testIBeta`
+
+### 测试方法
+
+```java
+    void testIBeta(TriTestCase tc) {
+        assertFunction(tc);
+    }
+```
+
+### 枚举声明 — `TriTestCase`（commons-numbers/commons-numbers-gamma/src/test/java/org/apache/commons/numbers/gamma/BoostBetaTest.java）
+
+```java
+    private enum TriTestCase implements TestError {
+        /** ibeta derivative Boost small integer data. */
+        IBETA_DERIV_SMALL_INT(BoostBeta::ibetaDerivative, "ibeta_derivative_small_int_data.csv", 60, 13),
+        /** ibeta derivative Boost small data. */
+        IBETA_DERIV_SMALL(BoostBeta::ibetaDerivative, "ibeta_derivative_small_data.csv", 22, 4),
+        /** ibeta derivative Boost medium data. */
+        IBETA_DERIV_MED(BoostBeta::ibetaDerivative, "ibeta_derivative_med_data.csv", 150, 33),
+        /** ibeta derivative Boost large and diverse data. */
+        IBETA_DERIV_LARGE(BoostBeta::ibetaDerivative, "ibeta_derivative_large_data.csv", 3900, 260),
+        // LogGamma based implementation is worse
+        /** ibeta derivative Boost small integer data. */
+        IBETA_DERIV1_SMALL_INT(BoostBetaTest::ibetaDerivative1, "ibeta_derivative_small_int_data.csv", 220, 55),
+        /** ibeta derivative Boost small data. */
+        IBETA_DERIV1_SMALL(BoostBetaTest::ibetaDerivative1, "ibeta_derivative_small_data.csv", 75, 10.5),
+        /** ibeta derivative Boost medium data. */
+        IBETA_DERIV1_MED(BoostBetaTest::ibetaDerivative1, "ibeta_derivative_med_data.csv", 1500, 300),
+        /** ibeta derivative Boost large and diverse data. */
+        IBETA_DERIV1_LARGE(BoostBetaTest::ibetaDerivative1, "ibeta_derivative_large_data.csv", 9e7, 250000),
+        // LogBeta based implementation is worse
+        /** ibeta derivative Boost small integer data. */
+        IBETA_DERIV2_SMALL_INT(BoostBetaTest::ibetaDerivative2, "ibeta_derivative_small_int_data.csv", 180, 31),
+        /** ibeta derivative Boost small data. */
+        IBETA_DERIV2_SMALL(BoostBetaTest::ibetaDerivative2, "ibeta_derivative_small_data.csv", 75, 8.5),
+        /** ibeta derivative Boost medium data. */
+        IBETA_DERIV2_MED(BoostBetaTest::ibetaDerivative2, "ibeta_derivative_med_data.csv", 500, 85),
+        /** ibeta derivative Boost large and diverse data. */
+        IBETA_DERIV2_LARGE(BoostBetaTest::ibetaDerivative2, "ibeta_derivative_large_data.csv", 28000, 1200),
+
+        /** ibeta Boost small integer data. */
+        IBETA_SMALL_INT(BoostBeta::beta, "ibeta_small_int_data.csv", 48, 11),
+        /** ibeta Boost small data. */
+        IBETA_SMALL(BoostBeta::beta, "ibeta_small_data.csv", 17, 3.3),
+        /** ibeta Boost medium data. */
+        IBETA_MED(BoostBeta::beta, "ibeta_med_data.csv", 190, 20),
+        /** ibeta Boost large and diverse data. */
+        IBETA_LARGE(BoostBeta::beta, "ibeta_large_data.csv", 1300, 50),
+        /** ibetac Boost small integer data. */
+        IBETAC_SMALL_INT(BoostBeta::betac, "ibeta_small_int_data.csv", 4, 57, 11),
+        /** ibetac Boost small data. */
+        IBETAC_SMALL(BoostBeta::betac, "ibeta_small_data.csv", 4, 14, 3.2),
+        /** ibetac Boost medium data. */
+        IBETAC_MED(BoostBeta::betac, "ibeta_med_data.csv", 4, 130, 24),
+        /** ibetac Boost large and diverse data. */
+        IBETAC_LARGE(BoostBeta::betac, "ibeta_large_data.csv", 4, 7000, 220),
+        /** regularised ibeta Boost small integer data. */
+        RBETA_SMALL_INT(BoostBeta::ibeta, "ibeta_small_int_data.csv", 5, 7.5, 1.2),
+        /** regularised ibeta Boost small data. */
+        RBETA_SMALL(BoostBeta::ibeta, "ibeta_small_data.csv", 5, 14, 3.3),
+        /** regularised ibeta Boost medium data. */
+        RBETA_MED(BoostBeta::ibeta, "ibeta_med_data.csv", 5, 200, 28),
+        /** regularised ibeta Boost large and diverse data. */
+        RBETA_LARGE(BoostBeta::ibeta, "ibeta_large_data.csv", 5, 2400, 100),
+        /** regularised ibetac Boost small integer data. */
+        RBETAC_SMALL_INT(BoostBeta::ibetac, "ibeta_small_int_data.csv", 6, 8, 1.6),
+        /** regularised ibetac Boost small data. */
+        RBETAC_SMALL(BoostBeta::ibetac, "ibeta_small_data.csv", 6, 11, 2.75),
+        /** regularised ibetac Boost medium data. */
+        RBETAC_MED(BoostBeta::ibetac, "ibeta_med_data.csv", 6, 105, 23),
+        /** regularised ibetac Boost large and diverse data. */
+        RBETAC_LARGE(BoostBeta::ibetac, "ibeta_large_data.csv", 6, 4000, 180),
+
+        // Classic continued fraction representation is:
+        // - worse on small data
+        // - comparable (or better) on medium data
+        // - much worse on large data
+        /** regularised ibeta Boost small data using the classic continued fraction evaluation. */
+        RBETA1_SMALL(BoostBetaTest::ibeta, "ibeta_small_data.csv", 5, 45, 5),
+        /** regularised ibeta Boost small data using the classic continued fraction evaluation. */
+        RBETA1_MED(BoostBetaTest::ibeta, "ibeta_med_data.csv", 5, 200, 26),
+        /** regularised ibeta Boost large and diverse data. */
+        RBETA1_LARGE(BoostBetaTest::ibeta, "ibeta_large_data.csv", 5, 150000, 7500),
+        /** regularised ibeta Boost small data using the classic continued fraction evaluation. */
+        RBETAC1_SMALL(BoostBetaTest::ibetac, "ibeta_small_data.csv", 6, 35, 4.5),
+        /** regularised ibeta Boost small data using the classic continued fraction evaluation. */
+        RBETAC1_MED(BoostBetaTest::ibetac, "ibeta_med_data.csv", 6, 100, 22),
+        /** regularised ibetac Boost large and diverse data. */
+        RBETAC1_LARGE(BoostBetaTest::ibetac, "ibeta_large_data.csv", 6, 370000, 11000);
+
+        /** The function. */
+        private final DoubleTernaryOperator fun;
+
+        /** The filename containing the test data. */
+        private final String filename;
+
+        /** The field containing the expected value. */
+        private final int expected;
+
+        /** The maximum allowed ulp. */
+        private final double maxUlp;
+
+        /** The maximum allowed RMS ulp. */
+        private final double rmsUlp;
+
+        /**
+         * Instantiates a new test case.
+         *
+         * @param fun function to test
+         * @param filename Filename of the test data
+         * @param maxUlp maximum allowed ulp
+         * @param rmsUlp maximum allowed RMS ulp
+         */
+        TriTestCase(DoubleTernaryOperator fun, String filename, double maxUlp, double rmsUlp) {
+            this(fun, filename, 3, maxUlp, rmsUlp);
+        }
+
+        /**
+         * Instantiates a new test case.
+         *
+         * @param fun function to test
+         * @param filename Filename of the test data
+         * @param expected Expected result field index
+         * @param maxUlp maximum allowed ulp
+         * @param rmsUlp maximum allowed RMS ulp
+         */
+        TriTestCase(DoubleTernaryOperator fun, String filename, int expected, double maxUlp, double rmsUlp) {
+            this.fun = fun;
+            this.filename = filename;
+            this.expected = expected;
+            this.maxUlp = maxUlp;
+            this.rmsUlp = rmsUlp;
+        }
+
+        /**
+         * @return function to test
+         */
+        DoubleTernaryOperator getFunction() {
+            return fun;
+        }
+
+        /**
+         * @return Filename of the test data
+         */
+        String getFilename() {
+            return filename;
+        }
+
+        /**
+         * @return Expected result field index
+         */
+        int getExpectedField() {
+            return expected;
+        }
+
+        @Override
+        public double getTolerance() {
+            return maxUlp;
+        }
+
+        @Override
+        public double getRmsTolerance() {
+            return rmsUlp;
+        }
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-124  ·  EnumSource
+
+**项目** `NiFi`  **文件** `nifi/nifi-extension-bundles/nifi-kafka-bundle/nifi-kafka-3-integration/src/test/java/org/apache/nifi/kafka/processors/ConsumeKafkaRecordIT.java`  **测试** `testInvalidRecordInMiddle`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @EnumSource(value = OutputStrategy.class)
+    void testInvalidRecordInMiddle(final OutputStrategy outputStrategy) throws ExecutionException, InterruptedException {
+        testSingleInvalidRecord("testInvalidRecordInMiddle", outputStrategy, VALID_RECORD_1_TEXT, INVALID_RECORD_TEXT, VALID_RECORD_2_TEXT);
+    }
+```
+
+### 枚举声明 — `OutputStrategy`（nifi/nifi-extension-bundles/nifi-aws-bundle/nifi-aws-processors/src/main/java/org/apache/nifi/processors/aws/kinesis/property/OutputStrategy.java）
+
+```java
+public enum OutputStrategy implements DescribedValue {
+    USE_VALUE("Use Content as Value", "Write only the Kinesis Record value to the FlowFile record."),
+    USE_WRAPPER("Use Wrapper", "Write the Kinesis Record value and metadata into the FlowFile record.");
+
+    private final String displayName;
+    private final String description;
+
+    OutputStrategy(final String displayName, final String description) {
+        this.displayName = displayName;
+        this.description = description;
+    }
+
+    @Override
+    public String getValue() {
+        return name();
+    }
+
+    @Override
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    @Override
+    public String getDescription() {
+        return description;
+    }
+}
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-127  ·  MethodSource
+
+**项目** `Commons-IO`  **文件** `commons-io/src/test/java/org/apache/commons/io/input/QueueInputStreamTest.java`  **测试** `testUnbufferedReadWrite`
+
+### 测试方法
+
+```java
+    @ParameterizedTest(name = "inputData={0}")
+    @MethodSource("inputData")
+    void testUnbufferedReadWrite(final String inputData) throws IOException {
+        try (QueueInputStream inputStream = new QueueInputStream();
+                QueueOutputStream outputStream = inputStream.newQueueOutputStream()) {
+            writeUnbuffered(outputStream, inputData);
+            final String actualData = readUnbuffered(inputStream);
+            assertEquals(inputData, actualData);
+        }
+    }
+```
+
+### Parameter provider — 同文件内的 `inputData`
+
+```java
+
+    public static Stream<Arguments> inputData() {
+        // @formatter:off
+        return Stream.of(Arguments.of(""),
+                Arguments.of("1"),
+                Arguments.of("12"),
+                Arguments.of("1234"),
+                Arguments.of("12345678"),
+                Arguments.of(StringUtils.repeat("A", 4095)),
+                Arguments.of(StringUtils.repeat("A", 4096)),
+                Arguments.of(StringUtils.repeat("A", 4097)),
+                Arguments.of(StringUtils.repeat("A", 8191)),
+                Arguments.of(StringUtils.repeat("A", 8192)),
+                Arguments.of(StringUtils.repeat("A", 8193)),
+                Arguments.of(StringUtils.repeat("A", 8192 * 4)));
+        // @formatter:on
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-130  ·  EnumSource
+
+**项目** `Commons-Numbers`  **文件** `commons-numbers/commons-numbers-gamma/src/test/java/org/apache/commons/numbers/gamma/BoostGammaTest.java`  **测试** `testLogGammaPDerivative`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @EnumSource(value = BiTestCase.class, mode = Mode.MATCH_ANY, names = {"LOG_GAMMA_P_DERIV.*"})
+    void testLogGammaPDerivative(BiTestCase tc) {
+        assertFunction(tc);
+    }
+```
+
+### 枚举声明 — `BiTestCase`（commons-numbers/commons-numbers-gamma/src/test/java/org/apache/commons/numbers/gamma/BoostBetaTest.java）
+
+```java
+    private enum BiTestCase implements TestError {
+        // beta(a, b)
+        // Note that the worst errors occur when a or b are large, and that
+        // when this is the case the result is very close to zero, so absolute
+        // errors will be very small.
+        /** beta Boost small data. */
+        BETA_SMALL(BoostBeta::beta, "beta_small_data.csv", 4, 1.7),
+        /** beta Boost medium data. */
+        BETA_MED(BoostBeta::beta, "beta_med_data.csv", 200, 35),
+        /** beta Boost divergent data. */
+        BETA_EXP(BoostBeta::beta, "beta_exp_data.csv", 17, 3.6),
+        // LogBeta based implementation is worse
+        /** beta Boost small data. */
+        BETA1_SMALL(BoostBetaTest::beta, "beta_small_data.csv", 110, 28),
+        /** beta Boost medium data. */
+        BETA1_MED(BoostBetaTest::beta, "beta_med_data.csv", 280, 46),
+        /** beta Boost divergent data. */
+        BETA1_EXP(BoostBetaTest::beta, "beta_exp_data.csv", 28, 4.5),
+        /** binomial coefficient Boost small argument data. */
+        BINOMIAL_SMALL(BoostBetaTest::binomialCoefficient, "binomial_small_data.csv", -2, 0.5),
+        /** binomial coefficient Boost large argument data. */
+        BINOMIAL_LARGE(BoostBetaTest::binomialCoefficient, "binomial_large_data.csv", 5, 1.1),
+        /** binomial coefficient extra large argument data. */
+        BINOMIAL_XLARGE(BoostBetaTest::binomialCoefficient, "binomial_extra_large_data.csv", 9, 2),
+        /** binomial coefficient huge argument data. */
+        BINOMIAL_HUGE(BoostBetaTest::binomialCoefficient, "binomial_huge_data.csv", 9, 2),
+        // Using the beta function is worse
+        /** binomial coefficient Boost large argument data computed using the beta function. */
+        BINOMIAL1_LARGE(BoostBetaTest::binomialCoefficient1, "binomial_large_data.csv", 31, 9),
+        /** binomial coefficient huge argument data computed using the beta function. */
+        BINOMIAL1_HUGE(BoostBetaTest::binomialCoefficient1, "binomial_huge_data.csv", 70, 19);
+
+        /** The function. */
+        private final DoubleBinaryOperator fun;
+
+        /** The filename containing the test data. */
+        private final String filename;
+
+        /** The field containing the expected value. */
+        private final int expected;
+
+        /** The maximum allowed ulp. */
+        private final double maxUlp;
+
+        /** The maximum allowed RMS ulp. */
+        private final double rmsUlp;
+
+        /**
+         * Instantiates a new test case.
+         *
+         * @param fun function to test
+         * @param filename Filename of the test data
+         * @param maxUlp maximum allowed ulp
+         * @param rmsUlp maximum allowed RMS ulp
+         */
+        BiTestCase(DoubleBinaryOperator fun, String filename, double maxUlp, double rmsUlp) {
+            this(fun, filename, 2, maxUlp, rmsUlp);
+        }
+
+        /**
+         * Instantiates a new test case.
+         *
+         * @param fun function to test
+         * @param filename Filename of the test data
+         * @param expected Expected result field index
+         * @param maxUlp maximum allowed ulp
+         * @param rmsUlp maximum allowed RMS ulp
+         */
+        BiTestCase(DoubleBinaryOperator fun, String filename, int expected, double maxUlp, double rmsUlp) {
+            this.fun = fun;
+            this.filename = filename;
+            this.expected = expected;
+            this.maxUlp = maxUlp;
+            this.rmsUlp = rmsUlp;
+        }
+
+        /**
+         * @return function to test
+         */
+        DoubleBinaryOperator getFunction() {
+            return fun;
+        }
+
+        /**
+         * @return Filename of the test data
+         */
+        String getFilename() {
+            return filename;
+        }
+
+        /**
+         * @return Expected result field index
+         */
+        int getExpectedField() {
+            return expected;
+        }
+
+        @Override
+        public double getTolerance() {
+            return maxUlp;
+        }
+
+        @Override
+        public double getRmsTolerance() {
+            return rmsUlp;
+        }
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-133  ·  ValueSource
+
+**项目** `Commons-BCEL`  **文件** `commons-bcel/src/test/java/org/apache/bcel/classfile/ConstantPoolModuleToStringTest.java`  **测试** `testClass`
+
+### 测试方法
+
+```java
+    void testClass(final String className) throws Exception {
+        testJavaClass(SyntheticRepository.getInstance().loadClass(className));
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-136  ·  CsvSource
+
+**项目** `POI`  **文件** `poi/poi-ooxml/src/test/java/org/apache/poi/poifs/crypt/dsig/TestSignatureInfo.java`  **测试** `getSigner`
+
+### 测试方法
+
+```java
+    void getSigner(String testFile, boolean secureValidation) throws Exception {
+        try (OPCPackage pkg = OPCPackage.open(testdata.getFile(testFile), PackageAccess.READ)) {
+            SignatureConfig sic = new SignatureConfig();
+            sic.setSecureValidation(secureValidation);
+            SignatureInfo si = new SignatureInfo();
+            si.setOpcPackage(pkg);
+            si.setSignatureConfig(sic);
+            List<X509Certificate> result = new ArrayList<>();
+            for (SignaturePart sp : si.getSignatureParts()) {
+                if (sp.validate()) {
+                    result.add(sp.getSigner());
+                }
+            }
+
+            assertNotNull(result);
+            assertEquals(1, result.size(), "test-file: " + testFile);
+            X509Certificate signer = result.get(0);
+            LOG.atDebug().log("signer: {}", signer.getSubjectX500Principal());
+
+            boolean b = si.verifySignature();
+            assertTrue(b, "test-file: " + testFile);
+            pkg.revert();
+        }
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-139  ·  CsvSource
+
+**项目** `JMeter`  **文件** `jmeter/src/core/src/test/java/org/apache/jmeter/util/XPathUtilTest.java`  **测试** `testComputeAssertionResultUsingSaxon`
+
+### 测试方法
+
+```java
+    public void testComputeAssertionResultUsingSaxon(String xpathquery, boolean isNegated, boolean isError, boolean isFailure)
+            throws SaxonApiException, FactoryConfigurationError {
+        //test xpath2 assertion
+        AssertionResult res = new AssertionResult("test");
+        String responseData = "<book><page>one</page><page>two</page><empty></empty><a><b></b></a></book>";
+        XPathUtil.computeAssertionResultUsingSaxon(res, responseData, xpathquery, "", isNegated);
+        assertEquals(isError, res.isError());
+        assertEquals(isFailure, res.isFailure());
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-142  ·  EnumSource
+
+**项目** `Iceberg`  **文件** `iceberg/flink/v2.1/flink/src/test/java/org/apache/iceberg/flink/sink/shuffle/TestDataStatisticsCoordinator.java`  **测试** `testDataStatisticsEventHandlingWithNullValue`
+
+### 测试方法
+
+```java
+  @ParameterizedTest
+  @EnumSource(StatisticsType.class)
+  public void testDataStatisticsEventHandlingWithNullValue(StatisticsType type) throws Exception {
+    try (DataStatisticsCoordinator dataStatisticsCoordinator = createCoordinator(type)) {
+      dataStatisticsCoordinator.start();
+      tasksReady(dataStatisticsCoordinator);
+
+      SortKey nullSortKey = Fixtures.SORT_KEY.copy();
+      nullSortKey.set(0, null);
+
+      StatisticsEvent checkpoint1Subtask0DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              type,
+              Fixtures.TASK_STATISTICS_SERIALIZER,
+              1L,
+              nullSortKey,
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("c"),
+              CHAR_KEYS.get("c"),
+              CHAR_KEYS.get("c"));
+      StatisticsEvent checkpoint1Subtask1DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              type,
+              Fixtures.TASK_STATISTICS_SERIALIZER,
+              1L,
+              nullSortKey,
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("c"),
+              CHAR_KEYS.get("c"));
+      // Handle events from operators for checkpoint 1
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, checkpoint1Subtask0DataStatisticEvent);
+      dataStatisticsCoordinator.handleEventFromOperator(
+          1, 0, checkpoint1Subtask1DataStatisticEvent);
+
+      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+
+      Map<SortKey, Long> keyFrequency =
+          ImmutableMap.of(nullSortKey, 2L, CHAR_KEYS.get("b"), 3L, CHAR_KEYS.get("c"), 5L);
+      MapAssignment mapAssignment =
+          MapAssignment.fromKeyFrequency(NUM_SUBTASKS, keyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
+
+      CompletedStatistics completedStatistics = dataStatisticsCoordinator.completedStatistics();
+      assertThat(completedStatistics.checkpointId()).isEqualTo(1L);
+      assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(completedStatistics.keyFrequency()).isEqualTo(keyFrequency);
+      } else {
+        assertThat(completedStatistics.keySamples())
+            .containsExactly(
+                nullSortKey,
+                nullSortKey,
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"));
+      }
+
+      GlobalStatistics globalStatistics = dataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics.checkpointId()).isEqualTo(1L);
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
+      } else {
+        assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("b"));
+      }
+    }
+  }
+```
+
+### 枚举声明 — `StatisticsType`（iceberg/flink/v1.20/flink/src/main/java/org/apache/iceberg/flink/sink/shuffle/StatisticsType.java）
+
+```java
+public enum StatisticsType {
+  /**
+   * Tracks the data statistics as {@code Map<SortKey, Long>} frequency. It works better for
+   * low-cardinality scenarios (like country, event_type, etc.) where the cardinalities are in
+   * hundreds or thousands.
+   *
+   * <ul>
+   *   <li>Pro: accurate measurement on the statistics/weight of every key.
+   *   <li>Con: memory footprint can be large if the key cardinality is high.
+   * </ul>
+   */
+  Map,
+
+  /**
+   * Sample the sort keys via reservoir sampling. Then split the range partitions via range bounds
+   * from sampled values. It works better for high-cardinality scenarios (like device_id, user_id,
+   * uuid etc.) where the cardinalities can be in millions or billions.
+   *
+   * <ul>
+   *   <li>Pro: relatively low memory footprint for high-cardinality sort keys.
+   *   <li>Con: non-precise approximation with potentially lower accuracy.
+   * </ul>
+   */
+  Sketch,
+
+  /**
+   * Initially use Map for statistics tracking. If key cardinality turns out to be high,
+   * automatically switch to sketch sampling.
+   */
+  Auto
+}
+```
+
+### 请判定
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-145  ·  MethodSource
+
+**项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-simple/src/test/java/org/apache/commons/rng/simple/ProvidersCommonParametricTest.java`  **测试** `testFactoryCreateMethod`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @MethodSource("getProvidersTestData")
+    void testFactoryCreateMethod(ProvidersList.Data data) {
+        final RandomSource originalSource = data.getSource();
+        final Object originalSeed = data.getSeed();
+        final Object[] originalArgs = data.getArgs();
+        // Cannot test providers that require arguments
+        Assumptions.assumeTrue(originalArgs == null);
+        @SuppressWarnings("deprecation")
+        final UniformRandomProvider rng = RandomSource.create(data.getSource());
+        final UniformRandomProvider generator = originalSource.create(originalSeed, originalArgs);
+        Assertions.assertEquals(generator.getClass(), rng.getClass());
+    }
+```
+
+### Parameter provider — 同文件内的 `getProvidersTestData`
+
+```java
+    private static Iterable<ProvidersList.Data> getProvidersTestData() {
+        return ProvidersList.list();
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
+
+---
+
+## IRR-148  ·  ValueSource
+
+**项目** `Flink`  **文件** `flink/flink-formats/flink-avro/src/test/java/org/apache/flink/formats/avro/typeutils/AvroTypeExtractionTest.java`  **测试** `testSerializeWithAvro`
+
+### 测试方法
+
+```java
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void testSerializeWithAvro(boolean useMiniCluster, @InjectMiniCluster MiniCluster miniCluster)
+            throws Exception {
+        final StreamExecutionEnvironment env = getExecutionEnvironment(useMiniCluster, miniCluster);
+        ((SerializerConfigImpl) env.getConfig().getSerializerConfig()).setForceKryoAvro(true);
+        Path in = new Path(inFile.getAbsoluteFile().toURI());
+
+        AvroInputFormat<User> users = new AvroInputFormat<>(in, User.class);
+        DataStream<User> usersDS =
+                env.createInput(users)
+                        .map(
+                                (MapFunction<User, User>)
+                                        value -> {
+                                            Map<CharSequence, Long> ab = new HashMap<>(1);
+                                            ab.put("hehe", 12L);
+                                            value.setTypeMap(ab);
+                                            return value;
+                                        });
+
+        usersDS.sinkTo(
+                FileSink.forRowFormat(new Path(resultPath), new SimpleStringEncoder<User>())
+                        .build());
+
+        env.execute("Simple Avro read job");
+
+        expected =
+                "{\"name\": \"Alyssa\", \"favorite_number\": 256, \"favorite_color\": null,"
+                        + " \"type_long_test\": null, \"type_double_test\": 123.45, \"type_null_test\": null,"
+                        + " \"type_bool_test\": true, \"type_array_string\": [\"ELEMENT 1\", \"ELEMENT 2\"],"
+                        + " \"type_array_boolean\": [true, false], \"type_nullable_array\": null, \"type_enum\": \"GREEN\","
+                        + " \"type_map\": {\"hehe\": 12}, \"type_fixed\": null, \"type_union\": null,"
+                        + " \"type_nested\": {\"num\": 239, \"street\": \"Baker Street\", \"city\": \"London\","
+                        + " \"state\": \"London\", \"zip\": \"NW1 6XE\"},"
+                        + " \"type_bytes\": \"\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\", "
+                        + "\"type_date\": \"2014-03-01\", \"type_time_millis\": \"12:12:12\", \"type_time_micros\": \"00:00:00.123456\", "
+                        + "\"type_timestamp_millis\": \"2014-03-01T12:12:12.321Z\", "
+                        + "\"type_timestamp_micros\": \"1970-01-01T00:00:00.123456Z\", "
+                        + "\"type_decimal_bytes\": \"\\u0007Ð\", \"type_decimal_fixed\": [7, -48]}\n"
+                        + "{\"name\": \"Charlie\", \"favorite_number\": null, "
+                        + "\"favorite_color\": \"blue\", \"type_long_test\": 1337, \"type_double_test\": 1.337, "
+                        + "\"type_null_test\": null, \"type_bool_test\": false, \"type_array_string\": [], "
+                        + "\"type_array_boolean\": [], \"type_nullable_array\": null, \"type_enum\": \"RED\", "
+                        + "\"type_map\": {\"hehe\": 12}, \"type_fixed\": null, \"type_union\": null, "
+                        + "\"type_nested\": {\"num\": 239, \"street\": \"Baker Street\", \"city\": \"London\", \"state\": \"London\", "
+                        + "\"zip\": \"NW1 6XE\"}, "
+                        + "\"type_bytes\": \"\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\", "
+                        + "\"type_date\": \"2014-03-01\", \"type_time_millis\": \"12:12:12\", \"type_time_micros\": \"00:00:00.123456\", "
+                        + "\"type_timestamp_millis\": \"2014-03-01T12:12:12.321Z\", "
+                        + "\"type_timestamp_micros\": \"1970-01-01T00:00:00.123456Z\", "
+                        + "\"type_decimal_bytes\": \"\\u0007Ð\", \"type_decimal_fixed\": [7, -48]}\n";
+    }
+```
+
+### 请判定
+
+`equivalence_class` / `semantic_role`
+
+---
