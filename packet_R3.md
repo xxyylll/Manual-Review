@@ -1,7 +1,8 @@
-# 评分包 R3
+# Rating packet R3
 
-共 60 条。每条只需判定该 source 适用的维度，判定规则见 `rater_guide.md`。
-把答案填进 `packet_R3.csv`，一行一条；拿不准就填 `unclear` 并在 notes 里写一句原因。
+60 items. For each one, classify only the dimensions that apply to its source — the rules are in `rater_guide.md`.
+
+Record your answers in `packet_R3.csv`, one row per item, matched by `item_id`. If the code shown does not let you decide, answer `unclear` and write one line in `notes`.
 
 ---
 
@@ -9,10 +10,10 @@
 
 **项目** `Commons-RDF`  **文件** `commons-rdf/commons-rdf-integration-tests/src/test/java/org/apache/commons/rdf/integrationtests/AllToAllTest.java`  **测试** `testAddTermsFromOtherFactory`
 
-### 测试方法
+### Test method
 
 ```java
-    @MethodSource("data")
+@MethodSource("data")
     @ParameterizedTest(name = "{index}: {0} -> {1}")
     void testAddTermsFromOtherFactory(final Class<? extends RDF> from, final Class<? extends RDF> to) throws Exception {
         RDF nodeFactory = from.getConstructor().newInstance();
@@ -60,7 +61,7 @@
 ### Parameter provider — 同文件内的 `data`
 
 ```java
-    @SuppressWarnings("rawtypes")
+@SuppressWarnings("rawtypes")
     public static Collection<Object[]> data() {
         final List<Class> factories = Arrays.asList(SimpleRDF.class, JenaRDF.class, RDF4J.class, JsonLdRDF.class);
         final Collection<Object[]> allToAll = new ArrayList<>();
@@ -75,7 +76,7 @@
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -85,10 +86,10 @@
 
 **项目** `POI`  **文件** `poi/poi-ooxml/src/test/java/org/apache/poi/xssf/usermodel/TestFormulaEvaluatorOnXSSF.java`  **测试** `processFunctionRow`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource("data")
     void processFunctionRow(String targetFunctionName, int formulasRowIdx, int expectedValuesRowIdx) {
         //DOLLAR function returns a string that is locale specific
@@ -176,7 +177,7 @@
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -186,9 +187,15 @@
 
 **项目** `jena`  **文件** `jena/jena-ontapi/src/test/java/org/apache/jena/ontapi/OntClassIndividualsTest.java`  **测试** `testListIndividuals7a`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @EnumSource(names = {
+            "OWL2_MEM",
+            "OWL1_MEM",
+            "RDFS_MEM",
+    })
     public void testListIndividuals7a(TestSpec spec) {
         //  A   B
         //  .\ /.
@@ -244,7 +251,7 @@
     }
 ```
 
-### 枚举声明 — `TestSpec`（jena/jena-ontapi/src/test/java/org/apache/jena/ontapi/TestSpec.java）
+### Enum declaration — `TestSpec` (jena/jena-ontapi/src/test/java/org/apache/jena/ontapi/TestSpec.java)
 
 ```java
 public enum TestSpec {
@@ -337,7 +344,20 @@ public enum TestSpec {
 }
 ```
 
-### 请判定
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`individuals`**
+
+```java
+
+    private static Set<String> individuals(OntModel m, String name, boolean direct) {
+        return m.getOntClass(NS + name).individuals(direct).map(Resource::getLocalName).collect(Collectors.toSet());
+    }
+```
+
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -345,118 +365,38 @@ public enum TestSpec {
 
 ## IRR-004  ·  EnumSource
 
-**项目** `Hudi`  **文件** `hudi/hudi-io/src/test/java/org/apache/hudi/io/compress/TestHoodieCompressor.java`  **测试** `testDefaultDecompressors`
+**项目** `Zeppelin`  **文件** `zeppelin/elasticsearch/src/test/java/org/apache/zeppelin/elasticsearch/client/ElasticsearchClientTypeTest.java`  **测试** `shouldNotBeHttpWhenTypeIsTransportOrUnknown`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
-  @EnumSource(CompressionCodec.class)
-  public void testDefaultDecompressors(CompressionCodec codec) throws IOException {
-    switch (codec) {
-      case NONE:
-      case GZIP:
-        HoodieCompressor decompressor = HoodieCompressorFactory.getCompressor(codec);
-        byte[] actualOutput = new byte[INPUT_LENGTH + 100];
-        try (InputStream stream = prepareInputStream(codec)) {
-          for (int sizeToRead : READ_PART_SIZE_LIST) {
-            stream.mark(INPUT_LENGTH);
-            int actualSizeRead =
-                decompressor.decompress(stream, actualOutput, 4, sizeToRead);
-            assertEquals(actualSizeRead, Math.min(INPUT_LENGTH, sizeToRead));
-            assertEquals(0, IOUtils.compareTo(
-                actualOutput, 4, actualSizeRead, INPUT_BYTES, 0, actualSizeRead));
-            stream.reset();
-          }
-        }
-        break;
-      default:
-        assertThrows(
-            IllegalArgumentException.class, () -> HoodieCompressorFactory.getCompressor(codec));
-    }
+@ParameterizedTest
+  @EnumSource(value = ElasticsearchClientType.class, names = {"TRANSPORT", "UNKNOWN"})
+  @DisplayName("should NOT be marked as HTTP-based when client type is TRANSPORT or UNKNOWN")
+  void shouldNotBeHttpWhenTypeIsTransportOrUnknown(ElasticsearchClientType type) {
+    assertFalse(type.isHttp(), type + " should NOT be marked as HTTP-based");
   }
 ```
 
-### 枚举声明 — `CompressionCodec`（hudi/hudi-io/src/main/java/org/apache/hudi/io/compress/CompressionCodec.java）
+### Enum declaration — `ElasticsearchClientType` (zeppelin/elasticsearch/src/main/java/org/apache/zeppelin/elasticsearch/client/ElasticsearchClientType.java)
 
 ```java
-public enum CompressionCodec {
-  NONE("none", 2),
-  BZIP2("bz2", 5),
-  GZIP("gz", 1),
-  LZ4("lz4", 4),
-  LZO("lzo", 0),
-  SNAPPY("snappy", 3),
-  ZSTD("zstd", 6);
+public enum ElasticsearchClientType {
+  HTTP(true), HTTPS(true), TRANSPORT(false), UNKNOWN(false);
 
-  private static final Map<String, CompressionCodec>
-      NAME_TO_COMPRESSION_CODEC_MAP = createNameToCompressionCodecMap();
-  private static final Map<Integer, CompressionCodec>
-      ID_TO_COMPRESSION_CODEC_MAP = createIdToCompressionCodecMap();
+  private final boolean isHttp;
 
-  private final String name;
-  // CompressionCodec ID to be stored in HFile on storage
-  // The ID of each codec cannot change or else that breaks all existing HFiles out there
-  // even the ones that are not compressed! (They use the NONE algorithm)
-  private final int id;
-
-  CompressionCodec(final String name, int id) {
-    this.name = name;
-    this.id = id;
+  ElasticsearchClientType(boolean isHttp) {
+    this.isHttp = isHttp;
   }
 
-  public String getName() {
-    return name;
-  }
-
-  public int getId() {
-    return id;
-  }
-
-  public static CompressionCodec findCodecByName(String name) {
-    CompressionCodec codec =
-        NAME_TO_COMPRESSION_CODEC_MAP.get(name.toLowerCase());
-    ValidationUtils.checkArgument(
-        codec != null, String.format("Cannot find compression codec: %s", name));
-    return codec;
-  }
-
-  /**
-   * Gets the compression codec based on the ID.  This ID is written to the HFile on storage.
-   *
-   * @param id ID indicating the compression codec
-   * @return compression codec based on the ID
-   */
-  public static CompressionCodec decodeCompressionCodec(int id) {
-    CompressionCodec codec = ID_TO_COMPRESSION_CODEC_MAP.get(id);
-    ValidationUtils.checkArgument(
-        codec != null, "Compression code not found for ID: " + id);
-    return codec;
-  }
-
-  /**
-   * @return the mapping of name to compression codec.
-   */
-  private static Map<String, CompressionCodec> createNameToCompressionCodecMap() {
-    return Collections.unmodifiableMap(
-        Arrays.stream(CompressionCodec.values())
-            .collect(Collectors.toMap(CompressionCodec::getName, Function.identity()))
-    );
-  }
-
-  /**
-   * @return the mapping of ID to compression codec.
-   */
-  private static Map<Integer, CompressionCodec> createIdToCompressionCodecMap() {
-    return Collections.unmodifiableMap(
-        Arrays.stream(CompressionCodec.values())
-            .collect(Collectors.toMap(CompressionCodec::getId, Function.identity()))
-    );
+  public boolean isHttp() {
+    return isHttp;
   }
 }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -466,9 +406,16 @@ public enum CompressionCodec {
 
 **项目** `Maven`  **文件** `maven/impl/maven-core/src/test/java/org/apache/maven/plugin/PluginParameterExpressionEvaluatorTest.java`  **测试** `testValueExtractionOfMissingPrefixedSuffixedProperty`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @ValueSource(
+            strings = {
+                "prefix-${PPEET_nonexisting_ps_property}",
+                "${PPEET_nonexisting_ps_property}-suffix",
+                "prefix-${PPEET_nonexisting_ps_property}-suffix",
+            })
     void testValueExtractionOfMissingPrefixedSuffixedProperty(String missingPropertyExpression) throws Exception {
         Properties executionProperties = new Properties();
 
@@ -480,7 +427,7 @@ public enum CompressionCodec {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -490,10 +437,10 @@ public enum CompressionCodec {
 
 **项目** `commons-rng`  **文件** `commons-rng/commons-rng-sampling/src/test/java/org/apache/commons/rng/sampling/ArraySamplerTest.java`  **测试** `testShuffleIsRandom`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @ValueSource(ints = {13, 16})
     void testShuffleIsRandom(int length) {
         final int[] array = PermutationSampler.natural(length);
@@ -510,7 +457,7 @@ public enum CompressionCodec {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -520,10 +467,10 @@ public enum CompressionCodec {
 
 **项目** `Commons-Compress`  **文件** `commons-compress/src/test/java/org/apache/commons/compress/changes/ChangeSetSafeTypesTest.java`  **测试** `testDeleteFileCpio`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource("org.apache.commons.compress.changes.TestFixtures#getOutputArchiveNames")
     void testDeleteFileCpio(final String archiverName) throws Exception {
         final Path input = createArchive(archiverName);
@@ -553,7 +500,7 @@ public enum CompressionCodec {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -561,44 +508,75 @@ public enum CompressionCodec {
 
 ## IRR-008  ·  EnumSource
 
-**项目** `camel`  **文件** `camel/components/camel-infinispan/camel-infinispan/src/test/java/org/apache/camel/component/infinispan/remote/InfinispanRemoteEmbeddingStoreIT.java`  **测试** `registerSchema`
+**项目** `Druid`  **文件** `druid/processing/src/test/java/org/apache/druid/query/metadata/SegmentMetadataQueryQueryToolChestTest.java`  **测试** `testInvalidMergeAggregatorsWithNullOrEmptyDatasource`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
-    @EnumSource(VectorSimilarity.class)
-    public void registerSchema(VectorSimilarity similarity) {
-        int dimension = 900 + similarity.ordinal();
-        String typeName = EmbeddingStoreUtil.DEFAULT_TYPE_NAME_PREFIX + dimension;
+@EnumSource(AggregatorMergeStrategy.class)
+  @ParameterizedTest(name = "{index}: with AggregatorMergeStrategy {0}")
+  public void testInvalidMergeAggregatorsWithNullOrEmptyDatasource(AggregatorMergeStrategy aggregatorMergeStrategy)
+  {
+    final SegmentAnalysis analysis1 = new SegmentAnalysis.Builder(TEST_SEGMENT_ID1).build();
+    final SegmentAnalysis analysis2 = new SegmentAnalysis.Builder(TEST_SEGMENT_ID2).build();
 
-        InfinispanRemoteConfiguration configuration = createInfinispanRemoteConfiguration();
-        configuration.setEmbeddingStoreDimension(dimension);
-        configuration.setEmbeddingStoreTypeName(typeName);
-        configuration.setEmbeddingStoreVectorSimilarity(similarity);
+    MatcherAssert.assertThat(
+        Assert.assertThrows(
+            DruidException.class,
+            () -> SegmentMetadataQueryQueryToolChest.mergeAnalyses(
+                null,
+                analysis1,
+                analysis2,
+                aggregatorMergeStrategy
+            )
+        ),
+        DruidExceptionMatcher.defensive().expectMessageIs("SegementMetadata queries require at least one datasource.")
+    );
 
-        InfinispanRemoteManager manager = new InfinispanRemoteManager(context, configuration);
-        BasicCache<Object, Object> metadataCache = null;
-        try {
-            manager.start();
-
-            metadataCache = manager.getCache(ProtobufMetadataManagerConstants.PROTOBUF_METADATA_CACHE_NAME);
-            Object metadata = metadataCache.get(EmbeddingStoreUtil.getSchemeFileName(configuration));
-            assertNotNull(metadata);
-        } finally {
-            if (metadataCache != null) {
-                metadataCache.remove(EmbeddingStoreUtil.getSchemeFileName(configuration));
-            }
-            manager.stop();
-        }
-    }
+    MatcherAssert.assertThat(
+        Assert.assertThrows(
+            DruidException.class,
+            () -> SegmentMetadataQueryQueryToolChest.mergeAnalyses(
+                ImmutableSet.of(),
+                analysis1,
+                analysis2,
+                aggregatorMergeStrategy
+            )
+        ),
+        DruidExceptionMatcher
+            .defensive()
+            .expectMessageIs(
+                "SegementMetadata queries require at least one datasource.")
+    );
+  }
 ```
 
-### 枚举声明
+### Enum declaration — `AggregatorMergeStrategy` (druid/processing/src/main/java/org/apache/druid/query/metadata/metadata/AggregatorMergeStrategy.java)
 
-> ⚠️ 未能定位枚举声明。
+```java
+public enum AggregatorMergeStrategy
+{
+  STRICT,
+  LENIENT,
+  EARLIEST,
+  LATEST;
 
-### 请判定
+  @JsonValue
+  @Override
+  public String toString()
+  {
+    return StringUtils.toLowerCase(this.name());
+  }
+
+  @JsonCreator
+  public static AggregatorMergeStrategy fromString(String name)
+  {
+    return valueOf(StringUtils.toUpperCase(name));
+  }
+}
+```
+
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -608,10 +586,10 @@ public enum CompressionCodec {
 
 **项目** `Log4j`  **文件** `logging-log4j2/log4j-api-test/src/test/java/org/apache/logging/log4j/util/PropertySourceTokenizerTest.java`  **测试** `testTokenize`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource("data")
     void testTokenize(final String value, final List<CharSequence> expectedTokens) {
         final List<CharSequence> tokens = PropertySource.Util.tokenize(value);
@@ -648,7 +626,7 @@ public enum CompressionCodec {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -658,10 +636,10 @@ public enum CompressionCodec {
 
 **项目** `Druid`  **文件** `druid/processing/src/test/java/org/apache/druid/query/metadata/SegmentMetadataQueryQueryToolChestTest.java`  **测试** `testProjectionsWithNull`
 
-### 测试方法
+### Test method
 
 ```java
-  @EnumSource(AggregatorMergeStrategy.class)
+@EnumSource(AggregatorMergeStrategy.class)
   @ParameterizedTest(name = "{index}: with AggregatorMergeStrategy {0}")
   public void testProjectionsWithNull(AggregatorMergeStrategy aggregatorMergeStrategy)
   {
@@ -682,7 +660,7 @@ public enum CompressionCodec {
   }
 ```
 
-### 枚举声明 — `AggregatorMergeStrategy`（druid/processing/src/main/java/org/apache/druid/query/metadata/metadata/AggregatorMergeStrategy.java）
+### Enum declaration — `AggregatorMergeStrategy` (druid/processing/src/main/java/org/apache/druid/query/metadata/metadata/AggregatorMergeStrategy.java)
 
 ```java
 public enum AggregatorMergeStrategy
@@ -707,7 +685,18 @@ public enum AggregatorMergeStrategy
 }
 ```
 
-### 请判定
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`mergeWithStrategy`**
+
+```java
+        mergeWithStrategy(analysis1NullProjection, analysis2NullProjection, aggregatorMergeStrategy).getProjections()
+    );
+```
+
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -717,16 +706,31 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-Lang`  **文件** `commons-lang/src/test/java/org/apache/commons/lang3/math/FractionTest.java`  **测试** `testHashCodeNotEquals`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    // @formatter:off
+    @CsvSource({
+        "0,          37,         -464320789,  46",
+        "0,          37,         -464320788,  9",
+        "0,          37,         1857283155,  38",
+        "0,          25185704,   1161454280,  1050304",
+        "0,          38817068,   1509581512,  18875972",
+        "0,          38817068,   -2146369536, 2145078572",
+        "1400217380, 128,        2092630052,  150535040",
+        "1400217380, 128,        -580400986,  268435638",
+        "1400217380, 2147483592, -2147483648, 268435452",
+        "1756395909, 4194598,    1174949894,  42860673"
+    })
+    // @formatter:on
     void testHashCodeNotEquals(final int f1n, final int f1d, final int f2n, final int f2d) {
         assertNotEquals(Fraction.getFraction(f1n, f1d), Fraction.getFraction(f2n, f2d));
         assertNotEquals(Fraction.getFraction(f1n, f1d).hashCode(), Fraction.getFraction(f2n, f2d).hashCode());
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -736,10 +740,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Hadoop`  **文件** `hadoop/hadoop-hdfs-project/hadoop-hdfs/src/test/java/org/apache/hadoop/hdfs/server/datanode/checker/TestDatasetVolumeChecker.java`  **测试** `testInvalidConfigurationValues`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest(name="{0}")
+@ParameterizedTest(name="{0}")
   @MethodSource("data")
   public void testInvalidConfigurationValues(VolumeCheckResult pExpectedVolumeHealth)
       throws Exception {
@@ -787,7 +791,21 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`initTestDatasetVolumeChecker`**
+
+```java
+
+
+  public void initTestDatasetVolumeChecker(VolumeCheckResult pExpectedVolumeHealth) {
+    this.expectedVolumeHealth = pExpectedVolumeHealth;
+  }
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -797,9 +815,42 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-BCEL`  **文件** `commons-bcel/src/test/java/org/apache/bcel/generic/EmptyVisitorTest.java`  **测试** `test`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @ValueSource(strings = {
+    // @formatter:off
+        "java.math.BigInteger",                          // contains instructions [AALOAD, AASTORE, ACONST_NULL, ALOAD, ANEWARRAY, ARETURN, ARRAYLENGTH,
+                                                         //   ASTORE, ATHROW, BALOAD, BASTORE, BIPUSH, CALOAD, CHECKCAST, D2I, DADD, DALOAD, DASTORE, DCONST
+                                                         //   DDIV, DMUL, DRETURN, DSUB, DUP, DUP2, DUP_X2, FCONST, FRETURN, GETFIELD, GETSTATIC, GOTO, I2B,
+                                                         //   I2D, I2L, IADD, IALOAD, IAND, IASTORE, ICONST, IDIV, IFEQ, IFGE, IFGT, IFLE, IFLT, IFNE,
+                                                         //   IFNONNULL, IFNULL, IF_ACMPNE, IF_ICMPEQ, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE, IF_ICMPLT, IF_ICMPNE,
+                                                         //   IINC, ILOAD, IMUL, INEG, INSTANCEOF, INVOKESPECIAL, INVOKESTATIC, INVOKEVIRTUAL, IOR, IREM,
+                                                         //   IRETURN, ISHL, ISHR, ISTORE, ISUB, IUSHR, IXOR, L2D, L2F, L2I, LADD, LALOAD, LAND, LASTORE, LCMP,
+                                                         //   LCONST, LDC, LDC2_W, LDC_W, LDIV, LLOAD, LMUL, LNEG, LOOKUPSWITCH, LOR, LREM, LRETURN, LSHL, LSHR,
+                                                         //   LSTORE, LSUB, LUSHR, NEW, NEWARRAY, POP, PUTFIELD, PUTSTATIC, RETURN, SIPUSH]
+        "java.math.BigDecimal",                          // contains instructions [CASTORE, D2L, DLOAD, FALOAD, FASTORE, FDIV, FMUL, I2S, IF_ACMPEQ, LXOR,
+                                                         //   MONITORENTER, MONITOREXIT, TABLESWITCH]
+        "java.awt.Color",                                // contains instructions [D2F, DCMPG, DCMPL, F2D, F2I, FADD, FCMPG, FCMPL, FLOAD, FSTORE, FSUB, I2F,
+                                                         //   INVOKEDYNAMIC]
+        "java.util.Map",                                 // contains instruction INVOKEINTERFACE
+        "java.io.Bits",                                  // contains instruction I2C
+        "java.io.BufferedInputStream",                   // contains instruction DUP_X1
+        "java.io.StreamTokenizer",                       // contains instruction DNEG, DSTORE
+        "java.lang.Float",                               // contains instruction F2L
+        "java.lang.invoke.LambdaForm",                   // contains instruction MULTIANEWARRAY,
+        "java.nio.Bits",                                 // contains instruction POP2,
+        "java.nio.HeapShortBuffer",                      // contains instruction SALOAD, SASTORE
+        "Java8Example2",                                 // contains instruction FREM
+        "java.awt.GradientPaintContext",                 // contains instruction DREM
+        "java.util.concurrent.atomic.DoubleAccumulator", // contains instruction DUP2_X1
+        "java.util.Hashtable",                           // contains instruction FNEG
+        "javax.swing.text.html.CSS",                     // contains instruction DUP2_X2
+        "org.apache.bcel.generic.LargeJump",             // contains instruction GOTO_W
+        "org.apache.commons.lang.SerializationUtils"     // contains instruction JSR
+    // @formatter:on
+    })
     void test(final String className) throws ClassNotFoundException {
         // "java.io.Bits" is not in Java 21.
         assumeFalse(SystemUtils.isJavaVersionAtLeast(JavaVersion.JAVA_21) && className.equals("java.io.Bits"));
@@ -831,7 +882,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -841,9 +892,34 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-client-api/src/test/java/org/apache/commons/rng/UniformRandomProviderTest.java`  **测试** `testNextDoubleUniform`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @CsvSource({
+        // Note: If the range limits are integers above 2^53 (9007199254740992) it is not possible
+        // to represent all the values with a double. This has no effect on sampling into bins
+        // but should be avoided when generating integers for use in production code.
+        // No lower bound.
+        "2673846826, 0, 11",
+        "-23658268, 0, 19",
+        "263478624, 0, 31",
+        "1278332, 0, 32",
+        "99734765, 0, 1234",
+        "-63485384, 0, 578",
+        "3876457638, 0, 10000",
+        "-126784782, 0, 2983423",
+        "2637846, 0, 9007199254740992",
+        // Range
+        "2634682, 567576, 567586",
+        "-56757798989, -1000, -100",
+        "-97324785, -54656, 12",
+        "23423235, -526783468, 257",
+        "-2634682, -688689797, -516827",
+        "6786868132, -67, 67",
+        "-263846723, -5678, 42",
+        "7352352, 678687, 61523457",
+    })
     void testNextDoubleUniform(long seed, double origin, double bound) {
         Assertions.assertEquals((long) origin, origin, "origin");
         Assertions.assertEquals((long) bound, bound, "bound");
@@ -857,7 +933,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -867,10 +943,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Avro`  **文件** `avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java`  **测试** `floatWrittenWithUnionSchemaIsNotConvertedToLongSchema`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @EnumSource(EncoderType.class)
   void floatWrittenWithUnionSchemaIsNotConvertedToLongSchema(EncoderType encoderType) throws Exception {
     Schema writer = UNION_INT_LONG_FLOAT_DOUBLE_RECORD;
@@ -882,7 +958,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 枚举声明 — `EncoderType`（avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java）
+### Enum declaration — `EncoderType` (avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java)
 
 ```java
   enum EncoderType {
@@ -890,7 +966,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -900,10 +976,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `uima-uimaj`  **文件** `uima-uimaj/uimaj-core/src/test/java/org/apache/uima/cas/serdes/CasSerializationDeserialization_XCAS_Test.java`  **测试** `roundTripDeserializeSerializeTest`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @MethodSource("roundTripDesSerScenarios")
   void roundTripDeserializeSerializeTest(Runnable aScenario) throws Exception {
     assumeNotKnownToFail(aScenario, //
@@ -924,7 +1000,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -934,10 +1010,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `commons-numbers`  **文件** `commons-numbers/commons-numbers-examples/examples-jmh/src/test/java/org/apache/commons/numbers/examples/jmh/arrays/KthSelectorTest.java`  **测试** `testSelectSPN`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource(value = {"testSelect"})
     void testSelectSPN(double[] values) {
         final double[] sorted = values.clone();
@@ -964,7 +1040,7 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `testSelect`
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource
     void testSelect(double[] values) {
         final double[] sorted = values.clone();
@@ -988,7 +1064,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -998,10 +1074,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `SkyWalking`  **文件** `skywalking/oap-server/analyzer/meter-analyzer/src/test/java/org/apache/skywalking/oap/meter/analyzer/dsl/ScopeTest.java`  **测试** `test`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest(name = "{0}")
+@ParameterizedTest(name = "{0}")
     @MethodSource("data")
     public void test(final String name,
                      final ImmutableMap<String, SampleFamily> input,
@@ -1196,7 +1272,7 @@ public enum AggregatorMergeStrategy
     // … 省略 394 行
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -1206,10 +1282,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `PLC4X`  **文件** `plc4x/plc4j/drivers/opcua/src/test/java/org/apache/plc4x/java/opcua/OpcuaPlcDriverTest.java`  **测试** `readVariables`
 
-### 测试方法
+### Test method
 
 ```java
-        @ParameterizedTest
+@ParameterizedTest
         @MethodSource("org.apache.plc4x.java.opcua.OpcuaPlcDriverTest#getConnectionSecurityPolicies")
         public void readVariables(SecurityPolicy policy, MessageSecurity messageSecurity) throws Exception {
             String connectionString = getConnectionString(policy, messageSecurity);
@@ -1269,7 +1345,51 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getConnectionString`**
+
+```java
+
+    private String getConnectionString(SecurityPolicy policy, MessageSecurity messageSecurity) throws Exception {
+        switch (policy) {
+            case NONE:
+                return tcpConnectionAddress;
+
+            case Basic256:
+            case Basic128Rsa15:
+            case Basic256Sha256:
+            case Aes128_Sha256_RsaOaep:
+            case Aes256_Sha256_RsaPss:
+                String connectionParams = params(
+                    entry("key-store-file", CLIENT_KEY_STORE.getAbsoluteFile().toString().replace("\\", "/")), // handle windows paths
+                    entry("key-store-password", "changeit"),
+                    entry("key-store-type", "pkcs12"),
+                    entry("security-policy", policy.name()),
+                    entry("message-security", messageSecurity.name())
+                );
+
+                return tcpConnectionAddress + PARAM_DIVIDER + connectionParams;
+            default:
+                throw new IllegalStateException();
+        }
+    }
+```
+
+**`params`**
+
+```java
+
+    private static String params(Entry<String, String> ... entries) {
+        return Stream.of(entries)
+            .map(entry -> entry.getKey() + "=" + URLEncoder.encode(entry.getValue(), Charset.defaultCharset()))
+            .collect(Collectors.joining(PARAM_DIVIDER));
+    }
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -1279,10 +1399,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-Numbers`  **文件** `commons-numbers/commons-numbers-gamma/src/test/java/org/apache/commons/numbers/gamma/BoostGammaTest.java`  **测试** `testGammaQLargeX`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @ValueSource(strings = {"igamma_int_data.csv", "igamma_med_data.csv", "igamma_big_data.csv"})
     @Order(1)
     void testGammaQLargeX(String datafile) throws Exception {
@@ -1290,7 +1410,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -1300,10 +1420,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `ZooKeeper`  **文件** `zookeeper/zookeeper-server/src/test/java/org/apache/zookeeper/server/admin/CommandAuthTest.java`  **测试** `testAuthCheck_authorized`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @EnumSource(AuthSchema.class)
     public void testAuthCheck_authorized(final AuthSchema authSchema) throws Exception {
         setupRootACL(authSchema);
@@ -1317,7 +1437,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 枚举声明 — `AuthSchema`（zookeeper/zookeeper-server/src/test/java/org/apache/zookeeper/server/admin/CommandAuthTest.java）
+### Enum declaration — `AuthSchema` (zookeeper/zookeeper-server/src/test/java/org/apache/zookeeper/server/admin/CommandAuthTest.java)
 
 ```java
     public enum AuthSchema {
@@ -1327,7 +1447,54 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### Test-side helpers called by this test (6)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`setupRootACL`**
+
+```java
+        setupRootACL(authSchema);
+```
+
+**`sendAuthTestCommandRequest`**
+
+```java
+
+    private HttpURLConnection sendAuthTestCommandRequest(final AuthSchema authSchema, final boolean validAuthInfo) throws Exception  {
+        final URL authTestURL = new URL(String.format(HTTPS_URL_FORMAT + "/" + AUTH_TEST_COMMAND_NAME, jettyAdminPort));
+        final HttpURLConnection authTestConn = (HttpURLConnection) authTestURL.openConnection();
+        addAuthHeader(authTestConn, authSchema, validAuthInfo);
+        authTestConn.setRequestMethod("GET");
+        return authTestConn;
+    }
+```
+
+**`addAuthInfo`**
+
+```java
+            addAuthInfo(zk, authSchema);
+```
+
+**`resetRootACL`**
+
+```java
+            resetRootACL(zk);
+```
+
+**`addAuthHeader`**
+
+```java
+        addAuthHeader(authTestConn, authSchema, validAuthInfo);
+```
+
+**`addAuthInfoForDigest`**
+
+```java
+                addAuthInfoForDigest(zk);
+```
+
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -1337,10 +1504,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Avro`  **文件** `avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java`  **测试** `doubleWrittenWithUnionSchemaIsNotConvertedToFloatSchema`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @EnumSource(EncoderType.class)
   void doubleWrittenWithUnionSchemaIsNotConvertedToFloatSchema(EncoderType encoderType) throws Exception {
     Schema writer = UNION_INT_LONG_FLOAT_DOUBLE_RECORD;
@@ -1352,7 +1519,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 枚举声明 — `EncoderType`（avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java）
+### Enum declaration — `EncoderType` (avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java)
 
 ```java
   enum EncoderType {
@@ -1360,7 +1527,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -1370,10 +1537,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Calcite`  **文件** `calcite/testkit/src/main/java/org/apache/calcite/test/QuidemTest.java`  **测试** `test`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @MethodSource("getPath")
   public void test(String path) throws Exception {
     final Method method = findMethod(path);
@@ -1400,141 +1567,128 @@ public enum AggregatorMergeStrategy
 
 ```java
   protected abstract Collection<String> getPath();
+```
 
-  /** Quidem connection factory for Calcite's built-in test schemas. */
-  protected static class QuidemConnectionFactory
-      implements Quidem.ConnectionFactory {
-    public Connection connect(String name) throws Exception {
-      return connect(name, false);
+### Test-side helpers called by this test (6)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`checkRun`**
+
+```java
+
+  protected void checkRun(String path) throws Exception {
+    final File inFile;
+    final File outFile;
+    final File f = new File(path);
+    if (f.isAbsolute()) {
+      // e.g. path = "/tmp/foo.iq"
+      inFile = f;
+      outFile = new File(path + ".out");
+    } else {
+      // e.g. path = "sql/agg.iq"
+      // inUrl = "file:/home/fred/calcite/core/build/resources/test/sql/agg.iq"
+      // inFile = "/home/fred/calcite/core/build/resources/test/sql/agg.iq"
+      // outDir = "/home/fred/calcite/core/build/quidem/test/sql"
+      // outFile = "/home/fred/calcite/core/build/quidem/test/sql/agg.iq"
+      final URL inUrl = QuidemTest.class.getResource("/" + n2u(path));
+      inFile = Sources.of(requireNonNull(inUrl, "inUrl")).file();
+      outFile = replaceDir(inFile, "resources", "quidem");
     }
-
-    @Override public Connection connect(String name, boolean reference)
-        throws Exception {
-      if (reference) {
-        if (name.equals("foodmart")) {
-          final ConnectionSpec db =
-              CalciteAssert.DatabaseInstance.HSQLDB.foodmart;
-          final Connection connection =
-              DriverManager.getConnection(db.url, db.username,
-                  db.password);
-          connection.setSchema("foodmart");
-          return connection;
-        }
-        return null;
-      }
-      switch (name) {
-      case "hr":
-        return CalciteAssert.hr()
-            .connect();
-      case "aux":
-        return CalciteAssert.hr()
-            .with(CalciteAssert.Config.AUX)
-            .connect();
-      case "foodmart":
-        return CalciteAssert.that()
-            .with(CalciteAssert.Config.FOODMART_CLONE)
-            .connect();
-      case "geo":
-        return CalciteAssert.that()
-            .with(CalciteAssert.Config.GEO)
-            .connect();
-      case "scott":
-        return CalciteAssert.that()
-            .with(CalciteAssert.Config.SCOTT)
-            .connect();
-      case "jdbc_scott":
-        return CalciteAssert.that()
-            .with(CalciteAssert.Config.JDBC_SCOTT)
-            .connect();
-      case "steelwheels":
-        return CalciteAssert.that()
-            .with(CalciteAssert.SchemaSpec.STEELWHEELS)
-            .connect();
-      case "jdbc_steelwheels":
-        return CalciteAssert.that()
-            .with(CalciteAssert.SchemaSpec.JDBC_STEELWHEELS)
-            .connect();
-      case "post":
-        return CalciteAssert.that()
-            .with(CalciteAssert.Config.REGULAR)
-            .with(CalciteAssert.SchemaSpec.POST)
-            .connect();
-      case "post-postgresql":
-        return CalciteAssert.that()
-            .with(CalciteConnectionProperty.FUN, "standard,postgresql")
-            .with(CalciteAssert.Config.REGULAR)
-            .with(CalciteAssert.SchemaSpec.POST)
-            .connect();
-      case "post-big-query":
-        return CalciteAssert.that()
-            .with(CalciteConnectionProperty.FUN, "standard,bigquery")
-            .with(CalciteAssert.Config.REGULAR)
-            .with(CalciteAssert.SchemaSpec.POST)
-            .connect();
-      case "mysqlfunc":
-        return CalciteAssert.that()
-            .with(CalciteConnectionProperty.FUN, "mysql")
-            .with(CalciteAssert.Config.REGULAR)
-            .with(CalciteAssert.SchemaSpec.POST)
-            .connect();
-      case "sparkfunc":
-        return CalciteAssert.that()
-            .with(CalciteConnectionProperty.FUN, "spark")
-            .with(CalciteAssert.Config.REGULAR)
-            .with(CalciteAssert.SchemaSpec.POST)
-            .connect();
-      case "oraclefunc":
-        return CalciteAssert.that()
-            .with(CalciteConnectionProperty.FUN, "oracle")
-            .with(CalciteAssert.Config.REGULAR)
-            .connect();
-      case "mssqlfunc":
-        return CalciteAssert.that()
-            .with(CalciteConnectionProperty.FUN, "mssql")
-            .with(CalciteAssert.Config.REGULAR)
-            .connect();
-      case "catchall":
-        return CalciteAssert.that()
-            .with(CalciteConnectionProperty.TIME_ZONE, "UTC")
-            .withSchema("s",
-                new ReflectiveSchemaWithoutRowCount(
-                    new CatchallSchema()))
-            .connect();
-      case "orinoco":
-        return CalciteAssert.that()
-            .with(CalciteAssert.SchemaSpec.ORINOCO)
-            .connect();
-      case "seq":
-        final Connection connection = CalciteAssert.that()
-            .withSchema("s", new AbstractSchema())
-            .connect();
-        connection.unwrap(CalciteConnection.class).getRootSchema()
-            .subSchemas().get("s")
-            .add("my_seq",
-                new AbstractTable() {
-                  @Override public RelDataType getRowType(
-                      RelDataTypeFactory typeFactory) {
-                    return typeFactory.builder()
-                        .add("$seq", SqlTypeName.BIGINT).build();
-                  }
-
-                  @Override public Schema.TableType getJdbcTableType() {
-                    return Schema.TableType.SEQUENCE;
-                  }
-                });
-        return connection;
-      case "bookstore":
-        return CalciteAssert.that()
-            .with(CalciteAssert.SchemaSpec.BOOKSTORE)
-            .connect();
-      default:
-        throw new RuntimeException("unknown connection '" + name + "'");
-      }
+    Util.discard(outFile.getParentFile().mkdirs());
+    try (Reader reader = Util.reader(inFile);
+         Writer writer = Util.printWriter(outFile);
+         Closer closer = new Closer()) {
+      final Quidem.Config config = Quidem.configBuilder()
+          .withReader(reader)
+          .withWriter(writer)
+          .withConnectionFactory(createConnectionFactory())
+          .withCommandHandler(createCommandHandler())
+          .withPropertyHandler((propertyName, value) -> {
+            if (propertyName.equals("bindable")) {
+              final boolean b = value instanceof Boolean
+                  && (Boolean) value;
+              closer.add(Hook.ENABLE_BINDABLE.addThread(Hook.propertyJ(b)));
+            }
+            if (propertyName.equals("expand")) {
+              final boolean b = value instanceof Boolean
+                  && (Boolean) value;
+              closer.add(Prepare.THREAD_EXPAND.push(b));
+            }
+            if (propertyName.equals("insubquerythreshold")) {
+              int thresholdValue = ((BigDecimal) value).intValue();
+              closer.add(Prepare.THREAD_INSUBQUERY_THRESHOLD.push(thresholdValue));
+            }
+            // Configures query planner rules via "!set planner-rules" command.
+            // The value can be set as follows:
+            // - Add rule:       "+EnumerableRules.ENUMERABLE_INTERSECT_RULE"
+            // - Remove rule:    "-CoreRules.INTERSECT_TO_DISTINCT"
+            // - Short form:     "+INTERSECT_TO_DISTINCT" (CoreRules prefix may be omitted)
+            // - Reset defaults: "original"
+            if (propertyName.equals("planner-rules")) {
+              if (value.equals("original")) {
+                closer.add(Hook.PLANNER.addThread(QuidemTest::resetPlanner));
+              } else {
+                closer.add(
+                    Hook.PLANNER.addThread((Consumer<RelOptPlanner>)
+                        planner -> {
+                          if (originalRules == null) {
+                            originalRules = planner.getRules();
+                          }
+                          updatePlanner(planner, (String) value);
+                        }));
+              }
+            }
+          })
+          .withEnv(QuidemTest::getEnv)
+          .build();
+      new Quidem(config).execute();
     }
+    // Sanity check: we do not allow an empty input file, it may indicate that it was overwritten
+    if (inFile.length() == 0) {
+    // … 省略 8 行
+```
+
+**`n2u`**
+
+```java
+        n2u(file.getAbsolutePath()).replace(n2u('/' + target + '/'),
+            n2u('/' + replacement + '/')));
+```
+
+**`replaceDir`**
+
+```java
+  private static File replaceDir(File file, String target, String replacement) {
+    return new File(
+        n2u(file.getAbsolutePath()).replace(n2u('/' + target + '/'),
+            n2u('/' + replacement + '/')));
   }
 ```
 
-### 请判定
+**`createConnectionFactory`**
+
+```java
+  protected Quidem.ConnectionFactory createConnectionFactory() {
+    return new QuidemConnectionFactory();
+  }
+```
+
+**`createCommandHandler`**
+
+```java
+  protected CommandHandler createCommandHandler() {
+    return Quidem.EMPTY_COMMAND_HANDLER;
+  }
+```
+
+**`updatePlanner`**
+
+```java
+                          updatePlanner(planner, (String) value);
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -1544,10 +1698,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-Pool`  **文件** `commons-pool/src/test/java/org/apache/commons/pool3/impl/CallStackTest.java`  **测试** `testPrintFilledStackTrace`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource("data")
     void testPrintFilledStackTrace(final CallStack stack) {
         stack.fillInStackTrace();
@@ -1573,7 +1727,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -1583,10 +1737,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-CLI`  **文件** `commons-cli/src/test/java/org/apache/commons/cli/TypeHandlerTest.java`  **测试** `testCreateValue`
 
-### 测试方法
+### Test method
 
 ```java
-    @SuppressWarnings("unchecked")
+@SuppressWarnings("unchecked")
     @ParameterizedTest(name = "{0} as {1}")
     @MethodSource("createValueTestParameters")
     void testCreateValue(final String str, final Class<?> type, final Object expected) throws Exception {
@@ -1697,7 +1851,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -1707,10 +1861,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Hive`  **文件** `hive/ql/src/test/org/apache/hadoop/hive/ql/io/parquet/serde/TestParquetTimestampsHive2Compatibility.java`  **测试** `testWriteHive2ReadHive4UsingLegacyConversionWithZone`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest(name = "{0}")
+@ParameterizedTest(name = "{0}")
   @MethodSource("generateTimestamps")
   void testWriteHive2ReadHive4UsingLegacyConversionWithZone(String timestampString) {
     TimeZone original = TimeZone.getDefault();
@@ -1776,7 +1930,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -1784,37 +1938,89 @@ public enum AggregatorMergeStrategy
 
 ## IRR-051  ·  MethodSource
 
-**项目** `Zeppelin`  **文件** `zeppelin/zeppelin-plugins/notebookrepo/gcs/src/test/java/org/apache/zeppelin/notebook/repo/GCSNotebookRepoTest.java`  **测试** `testSave_create`
+**项目** `Hop`  **文件** `hop/plugins/tech/azure/src/test/java/org/apache/hop/vfs/azure/AzureFileNameParserTest.java`  **测试** `parseUri`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
-  @MethodSource("buckets")
-  void testSave_create(String bucketName, Optional<String> basePath, String uriPath) throws Exception {
-    zConf.setProperty(ConfVars.ZEPPELIN_NOTEBOOK_GCS_STORAGE_DIR.getVarName(), uriPath);
-    this.notebookRepo = new GCSNotebookRepo(zConf, noteParser, storage);
-    notebookRepo.save(runningNote, AUTH_INFO);
-    // Output is saved
-    assertThat(storage.readAllBytes(makeBlobId(runningNote.getId(), runningNote.getPath(), bucketName, basePath)))
-        .isEqualTo(runningNote.toJson().getBytes("UTF-8"));
+@ParameterizedTest
+  @MethodSource("azureUris")
+  void parseUri(
+      String inputUri,
+      String expectedScheme,
+      String expectedContainer,
+      String expectedPathAfterContainer,
+      FileType expectedType)
+      throws FileSystemException {
+    VfsComponentContext context = Mockito.mock(VfsComponentContext.class);
+
+    AzureFileName actual = (AzureFileName) parser.parseUri(context, null, inputUri);
+
+    System.out.println(inputUri);
+    System.out.println("Scheme: " + actual.getScheme());
+    System.out.println("Container: " + actual.getContainer());
+    System.out.println("Path: " + actual.getPath());
+    System.out.println("--------------------------");
+
+    Assertions.assertEquals(expectedScheme, actual.getScheme());
+    Assertions.assertEquals(expectedContainer, actual.getContainer());
+    Assertions.assertEquals(expectedPathAfterContainer, actual.getPathAfterContainer());
+    Assertions.assertEquals(expectedType, actual.getType());
   }
 ```
 
-### Parameter provider — 同文件内的 `buckets`
+### Parameter provider — 同文件内的 `azureUris`
 
 ```java
 
-  private static Stream<Arguments> buckets() {
+  static Stream<Arguments> azureUris() {
     return Stream.of(
-      Arguments.of("bucketname", Optional.empty(), "gs://bucketname"),
-      Arguments.of("bucketname-with-slash", Optional.empty(), "gs://bucketname-with-slash/"),
-      Arguments.of("bucketname", Optional.of("path/to/dir"), "gs://bucketname/path/to/dir"),
-      Arguments.of("bucketname", Optional.of("trailing/slash"), "gs://bucketname/trailing/slash/"));
+        Arguments.of(
+            "azfs://hopsa/container/folder1/parquet-test-delo2-azfs-00-0001.parquet",
+            "azfs",
+            "container",
+            "/folder1/parquet-test-delo2-azfs-00-0001.parquet",
+            FileType.FILE),
+        Arguments.of(
+            "azfs:/hopsa/container/folder1/", "azfs", "container", "/folder1", FileType.FOLDER),
+        Arguments.of("azure://test/folder1/", "azure", "test", "/folder1", FileType.FOLDER),
+        Arguments.of(
+            "azure://mycontainer/folder1/parquet-test-delo2-azfs-00-0001.parquet",
+            "azure",
+            "mycontainer",
+            "/folder1/parquet-test-delo2-azfs-00-0001.parquet",
+            FileType.FILE),
+        Arguments.of(
+            "azfs://hopsa/delo/delo3-azfs-00-0001.parquet",
+            "azfs",
+            "delo",
+            "/delo3-azfs-00-0001.parquet",
+            FileType.FILE),
+        Arguments.of(
+            "azfs://hopsa/container/folder1/", "azfs", "container", "/folder1", FileType.FOLDER),
+        Arguments.of("azfs://account/container/", "azfs", "container", "", FileType.FOLDER),
+        Arguments.of(
+            "azfs://otheraccount/container/myfile.txt",
+            "azfs",
+            "container",
+            "/myfile.txt",
+            FileType.FILE),
+        Arguments.of(
+            "azfs:///account1/container/myfile.txt",
+            "azfs",
+            "container",
+            "/myfile.txt",
+            FileType.FILE),
+        Arguments.of(
+            "azfs:///fake/container/path/to/resource/myfile.txt",
+            "azfs",
+            "container",
+            "/path/to/resource/myfile.txt",
+            FileType.FILE));
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -1824,9 +2030,15 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-Statistics`  **文件** `commons-statistics/commons-statistics-inference/src/test/java/org/apache/commons/statistics/inference/HypergeomTest.java`  **测试** `testDistribution`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @CsvSource({
+        "10, 5, 5",
+        "10, 3, 5",
+        "12, 5, 3",
+    })
     void testDistribution(int n, int k, int m) {
         final HypergeometricDistribution d1 = HypergeometricDistribution.of(n, k, m);
         final Hypergeom d2 = new Hypergeom(n, k, m);
@@ -1871,7 +2083,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -1881,10 +2093,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Ozone`  **文件** `ozone/hadoop-ozone/integration-test/src/test/java/org/apache/hadoop/ozone/om/TestOMDbCheckpointServletInodeBasedXfer.java`  **测试** `testWriteDBToArchive`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void testWriteDBToArchive(boolean expectOnlySstFiles) throws Exception {
     setupMocks();
@@ -1940,7 +2152,123 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### Test-side helpers called by this test (5)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`setupMocks`**
+
+```java
+
+  private void setupMocks() throws Exception {
+    final Path tempPath = folder.resolve("temp" + COUNTER.incrementAndGet() + ".tar");
+    tempFile = tempPath.toFile();
+
+    servletOutputStream = new ServletOutputStream() {
+      private final OutputStream fileOutputStream = Files.newOutputStream(tempPath);
+
+      @Override
+      public boolean isReady() {
+        return true;
+      }
+
+      @Override
+      public void setWriteListener(WriteListener writeListener) {
+      }
+
+      @Override
+      public void close() throws IOException {
+        fileOutputStream.close();
+        super.close();
+      }
+
+      @Override
+      public void write(int b) throws IOException {
+        fileOutputStream.write(b);
+      }
+    };
+
+    omDbCheckpointServletMock = mock(OMDBCheckpointServletInodeBasedXfer.class);
+
+    BootstrapStateHandler.Lock lock = null;
+    if (om != null) {
+      lock = new OMDBCheckpointServlet.Lock(om);
+    }
+    doCallRealMethod().when(omDbCheckpointServletMock).init();
+    assertNull(doCallRealMethod().when(omDbCheckpointServletMock).getDbStore());
+
+    requestMock = mock(HttpServletRequest.class);
+    // Return current user short name when asked
+    when(requestMock.getRemoteUser())
+        .thenReturn(UserGroupInformation.getCurrentUser().getShortUserName());
+    responseMock = mock(HttpServletResponse.class);
+
+    ServletContext servletContextMock = mock(ServletContext.class);
+    when(omDbCheckpointServletMock.getServletContext())
+        .thenReturn(servletContextMock);
+
+    when(servletContextMock.getAttribute(OzoneConsts.OM_CONTEXT_ATTRIBUTE))
+        .thenReturn(om);
+    when(requestMock.getParameter(OZONE_DB_CHECKPOINT_REQUEST_FLUSH))
+        .thenReturn("true");
+
+    doCallRealMethod().when(omDbCheckpointServletMock).doGet(requestMock,
+        responseMock);
+    doCallRealMethod().when(omDbCheckpointServletMock).doPost(requestMock,
+        responseMock);
+
+    doCallRealMethod().when(omDbCheckpointServletMock)
+        .writeDbDataToStream(any(), any(), any(), any(), any());
+    doCallRealMethod().when(omDbCheckpointServletMock)
+        .writeDBToArchive(any(), any(), any(), any(), any(), any(), anyBoolean());
+
+    when(omDbCheckpointServletMock.getBootstrapStateLock())
+        .thenReturn(lock);
+    doCallRealMethod().when(omDbCheckpointServletMock).getCheckpoint(any(), anyBoolean());
+    assertNull(doCallRealMethod().when(omDbCheckpointServletMock).getBootstrapTempData());
+    doCallRealMethod().when(omDbCheckpointServletMock).getSnapshotDirs(any());
+    doCallRealMethod().when(omDbCheckpointServletMock).
+        processMetadataSnapshotRequest(any(), any(), anyBoolean(), anyBoolean());
+    // … 省略 4 行
+```
+
+**`write`**
+
+```java
+@Override
+      public void write(int b) throws IOException {
+        fileOutputStream.write(b);
+      }
+```
+
+**`isReady`**
+
+```java
+@Override
+      public boolean isReady() {
+        return true;
+      }
+```
+
+**`setWriteListener`**
+
+```java
+@Override
+      public void setWriteListener(WriteListener writeListener) {
+      }
+```
+
+**`close`**
+
+```java
+@Override
+      public void close() throws IOException {
+        fileOutputStream.close();
+        super.close();
+      }
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -1950,10 +2278,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Hive`  **文件** `hive/ql/src/test/org/apache/hadoop/hive/ql/io/parquet/serde/TestParquetTimestampsHive2Compatibility.java`  **测试** `testWriteHive2ReadHive4UsingLegacyConversionWithJulianLeapYears`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest(name = "{0}")
+@ParameterizedTest(name = "{0}")
   @MethodSource("generateTimestampsAndZoneIds")
   void testWriteHive2ReadHive4UsingLegacyConversionWithJulianLeapYears(String timestampString, String zoneId) {
     TimeZone original = TimeZone.getDefault();
@@ -1978,7 +2306,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -1988,9 +2316,68 @@ public enum AggregatorMergeStrategy
 
 **项目** `POI`  **文件** `poi/poi-scratchpad/src/test/java/org/apache/poi/hwpf/converter/TestWordToHtmlConverter.java`  **测试** `testFile`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @CsvSource({
+        "AIOOB-Tap.doc, <table class=\"t1\">",
+        "Bug33519.doc, " +
+            "\u041F\u043B\u0430\u043D\u0438\u043D\u0441\u043A\u0438 \u0442\u0443\u0440\u043E\u0432\u0435|" +
+            "\u042F\u0432\u043E\u0440 \u0410\u0441\u0435\u043D\u043E\u0432",
+        "Bug46610_2.doc, 012345678911234567892123456789312345678941234567890123456789112345678921234567893123456789412345678",
+        "Bug46817.doc, <table class=\"t1\">",
+        "Bug47286.doc, " +
+            "!FORMTEXT|" +
+            "color:#4f6228;|" +
+            "Passport No and the date of expire|" +
+            "mfa.gov.cy",
+        "Bug48075.doc, \u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u21162",
+        "innertable.doc, <span>A</span>",
+        "o_kurs.doc, \u0412\u0441\u0435 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B \u043D\u0443\u043C\u0435\u0440\u0443\u044E\u0442\u0441\u044F",
+        "Bug52583.doc, <select><option selected>riri</option><option>fifi</option><option>loulou</option></select>",
+        "Bug53182.doc, !italic",
+        "documentProperties.doc, " +
+            "<title>This is document title</title>|" +
+            "<meta content=\"This is document keywords\" name=\"keywords\">",
+        // email hyperlink
+        "Bug47286.doc, provisastpet@mfa.gov.cy",
+        "endingnote.doc, " +
+            "<a class=\"a1 endnoteanchor\" href=\"#endnote_1\" name=\"endnote_back_1\">1</a>|" +
+            "<a class=\"a1 endnoteindex\" href=\"#endnote_back_1\" name=\"endnote_1\">1</a><span|" +
+            "Ending note text",
+        "equation.doc, <!--Image link to '0.emf' can be here-->",
+        "hyperlink.doc, " +
+            "<span>Before text; </span><a |" +
+            "<a href=\"http://testuri.org/\"><span class=\"s1\">Hyperlink text</span></a>|" +
+            "</a><span>; after text</span>",
+        "lists-margins.doc, " +
+            ".s1{display: inline-block; text-indent: 0; min-width: 0.4861111in;}|" +
+            ".s2{display: inline-block; text-indent: 0; min-width: 0.23055555in;}|" +
+            ".s3{display: inline-block; text-indent: 0; min-width: 0.28541666in;}|" +
+            ".s4{display: inline-block; text-indent: 0; min-width: 0.28333333in;}|" +
+            ".p4{text-indent:-0.59652776in;margin-left:-0.70069444in;",
+        "pageref.doc, " +
+            "<a href=\"#userref\">|" +
+            "<a name=\"userref\">|" +
+            "1",
+        "table-merges.doc, " +
+            "<td class=\"td1\" colspan=\"3\">|" +
+            "<td class=\"td2\" colspan=\"2\">",
+        "52420.doc, " +
+            "!FORMTEXT|" +
+            "\u0417\u0410\u0414\u0410\u041d\u0418\u0415|" +
+            "\u041f\u0440\u0435\u043f\u043e\u0434\u0430\u0432\u0430\u0442\u0435\u043b\u044c",
+        "picture.doc, " +
+            "src=\"0.emf\"|" +
+            "width:3.1293333in;height:1.7247736in;|" +
+            "left:-0.09433333;top:-0.2573611;|" +
+            "width:3.4125in;height:2.3253334in;",
+        "pictures_escher.doc, " +
+            "<img src=\"s0.PNG\">|" +
+            "<img src=\"s808.PNG\">",
+        "bug65255.doc, meta content=\"王久君\""
+    })
     void testFile(String file, String contains) throws Exception {
         boolean emulatePictureStorage = !file.contains("equation");
 
@@ -2009,7 +2396,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -2019,10 +2406,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Calcite`  **文件** `calcite/testkit/src/main/java/org/apache/calcite/test/SqlOperatorTest.java`  **测试** `testCastDecimalToDoubleToInteger`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @MethodSource("safeParameters")
   void testCastDecimalToDoubleToInteger(CastType castType, SqlOperatorFixture f) {
     f.setFor(SqlStdOperatorTable.CAST, VmName.EXPAND);
@@ -2039,7 +2426,7 @@ public enum AggregatorMergeStrategy
 ### Parameter provider — 同文件内的 `safeParameters`
 
 ```java
-  @SuppressWarnings("unused")
+@SuppressWarnings("unused")
   private Stream<Arguments> safeParameters() {
     SqlOperatorFixture f = fixture();
     SqlOperatorFixture f2 =
@@ -2053,7 +2440,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -2063,10 +2450,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Maven`  **文件** `maven/impl/maven-core/src/test/java/org/apache/maven/graph/FilteredProjectDependencyGraphTest.java`  **测试** `downstreamProjectsShouldBeCached`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @ValueSource(booleans = {true, false})
     void downstreamProjectsShouldBeCached(boolean transitive) {
         FilteredProjectDependencyGraph graph =
@@ -2081,7 +2468,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -2091,9 +2478,13 @@ public enum AggregatorMergeStrategy
 
 **项目** `JAMES`  **文件** `james-project/server/protocols/webadmin/webadmin-mailbox/src/test/java/org/apache/james/webadmin/routes/DomainQuotaRoutesNoVirtualHostingTest.java`  **测试** `allDeleteEndpointsShouldReturnNotAllowed`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @ValueSource(strings = {
+        QUOTA_DOMAINS + "/" + FOUND_LOCAL + "/" + COUNT,
+        QUOTA_DOMAINS + "/" + FOUND_LOCAL + "/" + SIZE })
     void allDeleteEndpointsShouldReturnNotAllowed(String endpoint) {
         given()
             .delete(endpoint)
@@ -2102,7 +2493,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -2112,10 +2503,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-Compress`  **文件** `commons-compress/src/test/java/org/apache/commons/compress/changes/ChangeSetRawTypesTest.java`  **测试** `testDeletePlusAddSame`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource("org.apache.commons.compress.changes.TestFixtures#getOutputArchiveNames")
     @SuppressWarnings({ "unchecked", "rawtypes" })
     void testDeletePlusAddSame(final String archiverName) throws Exception {
@@ -2172,7 +2563,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -2182,10 +2573,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Druid`  **文件** `druid/sql/src/test/java/org/apache/druid/sql/calcite/CalciteJoinQueryTest.java`  **测试** `testInnerJoinOnTwoInlineDataSourcesWithOuterWhere_withLeftDirectAccess`
 
-### 测试方法
+### Test method
 
 ```java
-  @DecoupledTestConfig(quidemReason = QuidemTestCaseReason.JOIN_LEFT_DIRECT_ACCESS)
+@DecoupledTestConfig(quidemReason = QuidemTestCaseReason.JOIN_LEFT_DIRECT_ACCESS)
   @MethodSource("provideQueryContexts")
   @ParameterizedTest(name = "{0}")
   public void testInnerJoinOnTwoInlineDataSourcesWithOuterWhere_withLeftDirectAccess(Map<String, Object> queryContext)
@@ -2293,7 +2684,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -2303,10 +2694,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `SeaTunnel`  **文件** `seatunnel/seatunnel-connectors-v2/connector-fake/src/test/java/org/apache/seatunnel/connectors/seatunnel/fake/source/FakeDataGeneratorTest.java`  **测试** `testAutoIncrementId`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @ValueSource(strings = {"fake-auto-increment-id.conf", "fake-auto-increment-id.conf"})
     public void testAutoIncrementId(String conf) throws FileNotFoundException, URISyntaxException {
         ReadonlyConfig testConfig = getTestConfigFile(conf);
@@ -2342,7 +2733,31 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`getTestConfigFile`**
+
+```java
+
+    private ReadonlyConfig getTestConfigFile(String configFile)
+            throws FileNotFoundException, URISyntaxException {
+        if (!configFile.startsWith("/")) {
+            configFile = "/" + configFile;
+        }
+        URL resource = FakeDataGeneratorTest.class.getResource(configFile);
+        if (resource == null) {
+            throw new FileNotFoundException("Can't find config file: " + configFile);
+        }
+        String path = Paths.get(resource.toURI()).toString();
+        Config config = ConfigFactory.parseFile(new File(path));
+        assert config.hasPath("FakeSource");
+        return ReadonlyConfig.fromConfig(config.getConfig("FakeSource"));
+    }
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -2352,10 +2767,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-CSV`  **文件** `commons-csv/src/test/java/org/apache/commons/csv/CSVDuplicateHeaderTest.java`  **测试** `testCSVFormat`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource(value = {"duplicateHeaderAllowsMissingColumnsNamesData"})
     void testCSVFormat(final DuplicateHeaderMode duplicateHeaderMode,
                               final boolean allowMissingColumnNames,
@@ -2403,7 +2818,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -2413,10 +2828,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Avro`  **文件** `avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java`  **测试** `longWrittenWithUnionSchemaIsConvertedToLongFloatUnionSchema`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @EnumSource(EncoderType.class)
   void longWrittenWithUnionSchemaIsConvertedToLongFloatUnionSchema(EncoderType encoderType) throws Exception {
     Schema writer = UNION_LONG_RECORD;
@@ -2427,7 +2842,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 枚举声明 — `EncoderType`（avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java）
+### Enum declaration — `EncoderType` (avro/lang/java/avro/src/test/java/org/apache/avro/TestReadingWritingDataInEvolvedSchemas.java)
 
 ```java
   enum EncoderType {
@@ -2435,7 +2850,7 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -2445,10 +2860,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Directory-Studio`  **文件** `directory-studio/tests/test.integration.ui/src/main/java/org/apache/directory/studio/test/integration/ui/ValueEditorTest.java`  **测试** `testGetStringOrBinaryValue`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource("data")
     public void testGetStringOrBinaryValue( String name, Data data ) throws Exception
     {
@@ -2632,7 +3047,24 @@ public enum AggregatorMergeStrategy
     // … 省略 106 行
 ```
 
-### 请判定
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`setup`**
+
+```java
+
+    public void setup( String name, Data data ) throws Exception
+    {
+        IEntry entry = new DummyEntry( new Dn(), new DummyConnection( Schema.DEFAULT_SCHEMA ) );
+        IAttribute attribute = new Attribute( entry, data.attribute );
+        value = new Value( attribute, data.rawValue );
+        editor = data.valueEditorClass.newInstance();
+    }
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -2642,10 +3074,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Flink`  **文件** `flink/flink-table/flink-table-planner/src/test/java/org/apache/flink/table/planner/operations/SqlOtherOperationConverterTest.java`  **测试** `testHelpCommands`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @ValueSource(strings = {"HELP", "HELP;", "HELP ;", "HELP\t;", "HELP\n;"})
     void testHelpCommands(String command) {
         ExtendedParser extendedParser = new ExtendedParser();
@@ -2653,7 +3085,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -2663,10 +3095,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Rat`  **文件** `creadur-rat/apache-rat-core/src/test/java/org/apache/rat/commandline/ArgTests.java`  **测试** `outputFleNameNoDirectoryTest`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest(name = "{0}")
+@ParameterizedTest(name = "{0}")
     @ValueSource(strings = { "rat.txt", "./rat.txt", "/rat.txt", "target/rat.test" })
     public void outputFleNameNoDirectoryTest(String name) throws ParseException, IOException {
         class OutputFileConfig extends ReportConfiguration  {
@@ -2687,7 +3119,31 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`setOut`**
+
+```java
+@Override
+            public void setOut(File file) {
+                actual = file;
+            }
+```
+
+**`createCommandLine`**
+
+```java
+
+    private CommandLine createCommandLine(String[] args) throws ParseException {
+        Options opts = OptionCollection.buildOptions();
+        return DefaultParser.builder().setDeprecatedHandler(DeprecationReporter.getLogReporter())
+                .setAllowPartialMatching(true).build().parse(opts, args);
+    }
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -2697,10 +3153,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `hadoop`  **文件** `hadoop/hadoop-cloud-storage-project/hadoop-tos/src/test/java/org/apache/hadoop/fs/tosfs/object/TestObjectStorage.java`  **测试** `testDeleteNonEmptyDir`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @MethodSource("provideArguments")
   public void testDeleteNonEmptyDir(ObjectStorage store) throws IOException {
     setEnv(store);
@@ -2741,7 +3197,50 @@ public enum AggregatorMergeStrategy
   }
 ```
 
-### 请判定
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`setEnv`**
+
+```java
+
+  private void setEnv(ObjectStorage objectStore) {
+    this.storage = objectStore;
+  }
+```
+
+**`getStream`**
+
+```java
+
+  private InputStream getStream(String key) {
+    return storage.get(key).stream();
+  }
+```
+
+**`list`**
+
+```java
+
+  private ListObjectsResponse list(String prefix, String startAfter, int limit, String delimiter) {
+    Preconditions.checkArgument(limit <= 1000, "Cannot list more than 1000 objects.");
+    ListObjectsRequest request = ListObjectsRequest.builder()
+        .prefix(prefix)
+        .startAfter(startAfter)
+        .maxKeys(limit)
+        .delimiter(delimiter)
+        .build();
+    Iterator<ListObjectsResponse> iterator = storage.list(request).iterator();
+    if (iterator.hasNext()) {
+      return iterator.next();
+    } else {
+      return new ListObjectsResponse(new ArrayList<>(), new ArrayList<>());
+    }
+  }
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -2751,10 +3250,10 @@ public enum AggregatorMergeStrategy
 
 **项目** `Commons-Statistics`  **文件** `commons-statistics/commons-statistics-descriptive/src/test/java/org/apache/commons/statistics/descriptive/BaseLongStatisticTest.java`  **测试** `testCombineEmpty`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource(value = "testAccept")
     final void testCombineEmpty(long[] values) {
         final S empty = create();
@@ -2774,7 +3273,43 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### Test-side helpers called by this test (4)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`create`**
+
+```java
+    protected abstract S create();
+```
+
+**`assertCombine`**
+
+```java
+        assertCombine(v -> Statistics.add(create(), v), values, expected, tol);
+```
+
+**`combine`**
+
+```java
+                combine(stats, stats2, target, lhs, rhs);
+```
+
+**`format`**
+
+```java
+    static String format(long[] values) {
+        if (values.length > MAX_FORMAT_VALUES) {
+            return Arrays.stream(values)
+                         .limit(MAX_FORMAT_VALUES)
+                         .mapToObj(Long::toString)
+                         .collect(Collectors.joining(", ", "[", ", ...]"));
+        }
+        return Arrays.toString(values);
+    }
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -2782,45 +3317,34 @@ public enum AggregatorMergeStrategy
 
 ## IRR-105  ·  MethodSource
 
-**项目** `Commons-JEXL`  **文件** `commons-jexl/src/test/java/org/apache/commons/jexl3/JXLTTest.java`  **测试** `test311i`
+**项目** `Zeppelin`  **文件** `zeppelin/elasticsearch/src/test/java/org/apache/zeppelin/elasticsearch/ElasticsearchInterpreterTest.java`  **测试** `testMisc`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
-    @MethodSource("engines")
-    void test311i(final JexlBuilder builder) {
-        init(builder);
-        final JexlContext ctx311 = new Context311();
-        // @formatter:off
-        final String rpt
-                = "$$var u = 'Universe'; exec('4').execute((a, b)->{"
-                + "\n<p>${u} ${a}${b}</p>"
-                + "\n$$}, '2')";
-        // @formatter:on
-        final JxltEngine.Template t = JXLT.createTemplate("$$", new StringReader(rpt));
-        final StringWriter strw = new StringWriter();
-        t.evaluate(ctx311, strw, 42);
-        final String output = strw.toString();
-        assertEquals("<p>Universe 42</p>\n", output);
-    }
+@ParameterizedTest
+  @MethodSource("provideInterpreter")
+  void testMisc(ElasticsearchInterpreter interpreter) {
+    InterpreterResult res = interpreter.interpret(null, null);
+    assertEquals(Code.SUCCESS, res.code());
+
+    res = interpreter.interpret("   \n \n ", null);
+    assertEquals(Code.SUCCESS, res.code());
+  }
 ```
 
-### Parameter provider — 同文件内的 `engines`
+### Parameter provider — 同文件内的 `provideInterpreter`
 
 ```java
 
-   public static List<JexlBuilder> engines() {
-       final JexlFeatures f = new JexlFeatures();
-       f.lexical(true).lexicalShade(true);
-      return Arrays.asList(
-              new JexlBuilder().silent(false).lexical(true).lexicalShade(true).cache(128).strict(true),
-              new JexlBuilder().features(f).silent(false).cache(128).strict(true),
-              new JexlBuilder().silent(false).cache(128).strict(true));
-   }
+  private static Stream<Arguments> provideInterpreter() {
+    return Stream.of(
+      Arguments.of(transportInterpreter),
+      Arguments.of(httpInterpreter));
+  }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -2828,12 +3352,134 @@ public enum AggregatorMergeStrategy
 
 ## IRR-108  ·  EnumSource
 
-**项目** `ZooKeeper`  **文件** `zookeeper/zookeeper-server/src/test/java/org/apache/zookeeper/server/quorum/LearnerSyncThrottlerTest.java`  **测试** `testParallelNoThrottle`
+**项目** `ZooKeeper`  **文件** `zookeeper/zookeeper-server/src/test/java/org/apache/zookeeper/server/quorum/LearnerSyncThrottlerTest.java`  **测试** `testTryWithResourceThrottle`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
+    @EnumSource(LearnerSyncThrottler.SyncType.class)
+    public void testTryWithResourceThrottle(LearnerSyncThrottler.SyncType syncType) throws Exception {
+        LearnerSyncThrottler throttler = new LearnerSyncThrottler(1, syncType);
+        try {
+            throttler.beginSync(true);
+            try {
+                throttler.beginSync(false);
+                fail("shouldn't be able to have both syncs open");
+            } catch (SyncThrottleException e) {
+            }
+            throttler.endSync();
+        } catch (SyncThrottleException e) {
+            fail("First sync shouldn't be throttled");
+        }
+    }
+```
+
+### Enum declaration — `SyncType` (zookeeper/zookeeper-server/src/main/java/org/apache/zookeeper/server/quorum/LearnerSyncThrottler.java)
+
+```java
+    public enum SyncType {
+        DIFF,
+        SNAP
+    }
+```
+
+### To classify
+
+`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+
+---
+
+## IRR-111  ·  CsvSource
+
+**项目** `Fineract`  **文件** `fineract/fineract-core/src/test/java/org/apache/fineract/util/LoopGuardTest.java`  **测试** `testSafeWhileLoopExecutesCorrectly`
+
+### Test method
+
+```java
+@ParameterizedTest
+    // target value, max iterations
+    @CsvSource({ "2, 5", //
+            "4, 5", //
+            "6, 10", //
+            "2, 2" //
+    })
+    void testSafeWhileLoopExecutesCorrectly(int targetValue, int maxIterations) {
+        TestContext context = new TestContext();
+
+        Predicate<TestContext> condition = ctx -> ctx.iteration < targetValue;
+        LoopGuard.LoopBody<TestContext> body = ctx -> ctx.iteration++;
+
+        LoopGuard.runSafeWhileLoop(maxIterations, context, condition, body);
+
+        Assertions.assertEquals(targetValue, context.iteration);
+    }
+```
+
+### To classify
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-114  ·  ValueSource
+
+**项目** `ORC`  **文件** `orc/java/mapreduce/src/test/org/apache/orc/mapred/TestOrcFileEvolution.java`  **测试** `testPreHive4243AddColumnWithFix`
+
+### Test method
+
+```java
+@ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testPreHive4243AddColumnWithFix(boolean addSarg) {
+    checkEvolution("struct<_col0:int,_col1:string>",
+                   "struct<a:int,b:string,c:double>",
+                   struct(1, "foo"),
+                   struct(1, "foo", null), true, addSarg, false);
+  }
+```
+
+### Test-side helpers called by this test (3)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`checkEvolution`**
+
+```java
+    checkEvolution("struct<a:int,b:string>", "struct<a:int,b:string,c:double>",
+        struct(11, "foo"),
+        addSarg ? struct(0, "", 0.0) : struct(11, "foo", null),
+        addSarg);
+```
+
+**`struct`**
+
+```java
+  private List<Object> struct(Object... fields) {
+    return list(fields);
+  }
+```
+
+**`list`**
+
+```java
+    return list(fields);
+```
+
+### To classify
+
+`equivalence_class` / `semantic_role`
+
+---
+
+## IRR-117  ·  EnumSource
+
+**项目** `ZooKeeper`  **文件** `zookeeper/zookeeper-server/src/test/java/org/apache/zookeeper/server/quorum/LearnerSyncThrottlerTest.java`  **测试** `testParallelNoThrottle`
+
+### Test method
+
+```java
+@ParameterizedTest
     @EnumSource(LearnerSyncThrottler.SyncType.class)
     public void testParallelNoThrottle(LearnerSyncThrottler.SyncType syncType) {
         final int numThreads = 50;
@@ -2880,7 +3526,7 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 枚举声明 — `SyncType`（zookeeper/zookeeper-server/src/main/java/org/apache/zookeeper/server/quorum/LearnerSyncThrottler.java）
+### Enum declaration — `SyncType` (zookeeper/zookeeper-server/src/main/java/org/apache/zookeeper/server/quorum/LearnerSyncThrottler.java)
 
 ```java
     public enum SyncType {
@@ -2889,130 +3535,34 @@ public enum AggregatorMergeStrategy
     }
 ```
 
-### 请判定
+### Test-side helpers called by this test (1)
 
-`equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
 
----
-
-## IRR-111  ·  CsvSource
-
-**项目** `Fineract`  **文件** `fineract/fineract-core/src/test/java/org/apache/fineract/util/LoopGuardTest.java`  **测试** `testSafeWhileLoopExecutesCorrectly`
-
-### 测试方法
+**`call`**
 
 ```java
-    void testSafeWhileLoopExecutesCorrectly(int targetValue, int maxIterations) {
-        TestContext context = new TestContext();
+@Override
+                public Boolean call() {
+                    threadStartLatch.countDown();
+                    try {
+                        threadStartLatch.await();
 
-        Predicate<TestContext> condition = ctx -> ctx.iteration < targetValue;
-        LoopGuard.LoopBody<TestContext> body = ctx -> ctx.iteration++;
+                        throttler.beginSync(false);
 
-        LoopGuard.runSafeWhileLoop(maxIterations, context, condition, body);
+                        syncProgressLatch.countDown();
+                        syncProgressLatch.await();
 
-        Assertions.assertEquals(targetValue, context.iteration);
-    }
+                        throttler.endSync();
+                    } catch (Exception e) {
+                        return false;
+                    }
+
+                    return true;
+                }
 ```
 
-### 请判定
-
-`equivalence_class` / `semantic_role`
-
----
-
-## IRR-114  ·  ValueSource
-
-**项目** `ORC`  **文件** `orc/java/mapreduce/src/test/org/apache/orc/mapred/TestOrcFileEvolution.java`  **测试** `testPreHive4243AddColumnWithFix`
-
-### 测试方法
-
-```java
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  public void testPreHive4243AddColumnWithFix(boolean addSarg) {
-    checkEvolution("struct<_col0:int,_col1:string>",
-                   "struct<a:int,b:string,c:double>",
-                   struct(1, "foo"),
-                   struct(1, "foo", null), true, addSarg, false);
-  }
-```
-
-### 请判定
-
-`equivalence_class` / `semantic_role`
-
----
-
-## IRR-117  ·  EnumSource
-
-**项目** `Causeway`  **文件** `causeway/core/mmtest/src/test/java/org/apache/causeway/core/metamodel/valuesemantics/temporal/TemporalValueSemanticsProviderTest.java`  **测试** `timeFormats`
-
-### 测试方法
-
-```java
-    @ParameterizedTest
-    @EnumSource(TimePrecision.class)
-    void timeFormats(final TimePrecision timePrecision) {
-
-        target = new TemporalValueSemanticsProvider_forTesting(
-                TemporalCharacteristic.TIME_ONLY, OffsetCharacteristic.LOCAL);
-
-        Context context = null;
-        LocalTime localTime = LocalTime.of(13, 12, 45);
-
-        var formatter = target.getTemporalEditingFormat(context ,
-                target.getTemporalCharacteristic(),
-                target.getOffsetCharacteristic(),
-                timePrecision,
-                EditingFormatDirection.OUTPUT,
-                editingPattern);
-
-        var formattedTemporal = formatter.format(localTime);
-        assertNotNull(formattedTemporal);
-    }
-```
-
-### 枚举声明 — `TimePrecision`（causeway/api/applib/src/main/java/org/apache/causeway/applib/annotation/TimePrecision.java）
-
-```java
-public enum TimePrecision {
-
-    UNSPECIFIED,
-
-    /**
-     * 9 fractional digits for <i>Second</i>
-     */
-    NANO_SECOND,
-
-    /**
-     * 6 fractional digits for <i>Second</i>
-     */
-    MICRO_SECOND,
-
-    /**
-     * 3 fractional digits for <i>Second</i>
-     */
-    MILLI_SECOND,
-
-    /**
-     * <i>Second</i>
-     */
-    SECOND,
-
-    /**
-     * <i>Minute</i>
-     */
-    MINUTE,
-
-    /**
-     * <i>Hour</i>
-     */
-    HOUR;
-
-}
-```
-
-### 请判定
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -3022,10 +3572,10 @@ public enum TimePrecision {
 
 **项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-simple/src/test/java/org/apache/commons/rng/simple/internal/NativeSeedTypeParametricTest.java`  **测试** `testCreateSeed`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @EnumSource
     void testCreateSeed(NativeSeedType nativeSeedType) {
         final int size = 3;
@@ -3039,7 +3589,7 @@ public enum TimePrecision {
     }
 ```
 
-### 枚举声明 — `NativeSeedType`（commons-rng/commons-rng-simple/src/main/java/org/apache/commons/rng/simple/internal/NativeSeedType.java）
+### Enum declaration — `NativeSeedType` (commons-rng/commons-rng-simple/src/main/java/org/apache/commons/rng/simple/internal/NativeSeedType.java)
 
 ```java
 public enum NativeSeedType {
@@ -3205,7 +3755,7 @@ public enum NativeSeedType {
     // … 省略 141 行
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -3215,10 +3765,10 @@ public enum NativeSeedType {
 
 **项目** `JMeter`  **文件** `jmeter/src/dist-check/src/test/java/org/apache/jmeter/junit/JMeterTest.java`  **测试** `elementShouldNotBeModifiedWithConfigureModify`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource("guiComponents")
     public void elementShouldNotBeModifiedWithConfigureModify(GuiComponentHolder componentHolder) {
         JMeterGUIComponent guiItem = componentHolder.getComponent();
@@ -3272,7 +3822,18 @@ public enum NativeSeedType {
     }
 ```
 
-### 请判定
+### Test-side helpers called by this test (1)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`improperlyUsesUiPlaceholders`**
+
+```java
+                improperlyUsesUiPlaceholders(guiItem.getClass()),
+                () -> "UI " + componentHolder + " does not use placeholders properly, so the test is skipped");
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -3282,45 +3843,34 @@ public enum NativeSeedType {
 
 **项目** `Log4j`  **文件** `logging-log4j2/log4j-core-test/src/test/java/org/apache/logging/log4j/core/async/AsyncThreadContextGarbageFreeTest.java`  **测试** `testAsyncLogWritesToLog`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @EnumSource
     void testAsyncLogWritesToLog(final Mode asyncMode) throws Exception {
         testAsyncLogWritesToLog(ContextImpl.GARBAGE_FREE, asyncMode, loggingPath);
     }
 ```
 
-### 枚举声明 — `Mode`（logging-log4j2/log4j-core-test/src/test/java/org/apache/logging/log4j/core/async/AbstractAsyncThreadContextTestBase.java）
+### Enum declaration — `Mode` (logging-log4j2/log4j-core/src/main/java/org/apache/logging/log4j/core/appender/rewrite/MapRewritePolicy.java)
 
 ```java
-    protected enum Mode {
-        ALL_ASYNC,
-        MIXED,
-        BOTH_ALL_ASYNC_AND_MIXED;
+    public enum Mode {
 
-        void initSelector() {
-            final ContextSelector selector;
-            if (this == ALL_ASYNC || this == BOTH_ALL_ASYNC_AND_MIXED) {
-                selector = new AsyncLoggerContextSelector();
-            } else {
-                selector = new ClassLoaderContextSelector();
-            }
-            LogManager.setFactory(new Log4jContextFactory(selector));
-        }
+        /**
+         * Keys should be added.
+         */
+        Add,
 
-        void initConfigFile() {
-            // NOTICE: PLEASE DON'T REFACTOR: keep "file" local variable for confirmation in debugger.
-            final String file = this == ALL_ASYNC //
-                    ? "AsyncLoggerThreadContextTest.xml" //
-                    : "AsyncLoggerConfigThreadContextTest.xml";
-            props.setProperty(ConfigurationFactory.CONFIGURATION_FILE_PROPERTY, file);
-        }
+        /**
+         * Keys should be updated.
+         */
+        Update
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `enum_representation` / `enum_exploitation` / `behavior_carrying`
 
@@ -3330,10 +3880,10 @@ public enum NativeSeedType {
 
 **项目** `Commons-RNG`  **文件** `commons-rng/commons-rng-core/src/test/java/org/apache/commons/rng/core/SplittableProvidersParametricTest.java`  **测试** `testSplitsMethodsUseSameSpliterator`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource("getSplittableProviders")
     void testSplitsMethodsUseSameSpliterator(SplittableUniformRandomProvider generator) {
         final long size = 10;
@@ -3352,7 +3902,7 @@ public enum NativeSeedType {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -3362,10 +3912,10 @@ public enum NativeSeedType {
 
 **项目** `Hive`  **文件** `hive/ql/src/test/org/apache/hadoop/hive/ql/io/parquet/serde/TestParquetTimestampsHive2Compatibility.java`  **测试** `testWriteHive4UsingLegacyConversionReadHive2`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest(name = "{0}")
+@ParameterizedTest(name = "{0}")
   @MethodSource("generateTimestamps")
   void testWriteHive4UsingLegacyConversionReadHive2(String timestampString) {
     NanoTime nt = writeHive4(timestampString, TimeZone.getDefault().getID(), true);
@@ -3424,7 +3974,7 @@ public enum NativeSeedType {
   }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -3434,10 +3984,10 @@ public enum NativeSeedType {
 
 **项目** `Commons-HttpClient`  **文件** `httpcomponents-client/httpclient5-testing/src/test/java/org/apache/hc/client5/testing/async/TestConnectionClosureRace.java`  **测试** `testSpacedOutBatchesOfRequests`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest(name = "Validation: {0}")
+@ParameterizedTest(name = "Validation: {0}")
     @ValueSource(booleans = { false, true })
     @Timeout(5)
     @Order(5)
@@ -3454,7 +4004,7 @@ public enum NativeSeedType {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -3464,10 +4014,10 @@ public enum NativeSeedType {
 
 **项目** `Commons-Compress`  **文件** `commons-compress/src/test/java/org/apache/commons/compress/harmony/pack200/NewAttributeBandsTest.java`  **测试** `testIntegralLayouts`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @ValueSource(strings = { "B", "FB", "SB", "H", "FH", "SH", "I", "FI", "SI", "PB", "OB", "OSB", "POB", "PH", "OH", "OSH", "POH", "PI", "OI", "OSI", "POI" })
     void testIntegralLayouts(final String layoutStr) throws IOException {
         final CPUTF8 name = new CPUTF8("TestAttribute");
@@ -3481,7 +4031,7 @@ public enum NativeSeedType {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -3491,10 +4041,10 @@ public enum NativeSeedType {
 
 **项目** `Commons-Numbers`  **文件** `commons-numbers/commons-numbers-arrays/src/test/java/org/apache/commons/numbers/arrays/SelectionTest.java`  **测试** `testIntDualPivotQuickSelectMaxRecursion`
 
-### 测试方法
+### Test method
 
 ```java
-    @ParameterizedTest
+@ParameterizedTest
     @MethodSource(value = {"testIntPartition", "testIntPartitionBigData"})
     void testIntDualPivotQuickSelectMaxRecursion(int[] values, int[] indices) {
         assertPartition(values, indices, (a, k, n) -> {
@@ -3656,7 +4206,7 @@ public enum NativeSeedType {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 
@@ -3666,9 +4216,21 @@ public enum NativeSeedType {
 
 **项目** `JMeter`  **文件** `jmeter/src/protocol/http/src/test/java/org/apache/jmeter/protocol/http/proxy/DefaultSamplerCreatorTest.java`  **测试** `computeSamplerNameWithCounter`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @CsvSource({
+            "3,#{name} - #{counter} - #{scheme}://#{host}:#{port}#{path},prefix| - 42 - https://jmeter.invalid:443/some/path",
+            "3,#{counter} - #{path},42 - /some/path",
+            "3,#{url},https://jmeter.invalid/some/path",
+            "3,{0},{0}",
+            "3,'{0,number,#.##}','{0,number,#.##}'",
+            "0,,prefix|/some/path-42",
+            "1,,prefix|-42",
+            "2,,prefix|-42 /some/path",
+            "4,,/some/path"
+    })
     void computeSamplerNameWithCounter(int sampleNameMode, String format, String expectedName) {
         DefaultSamplerCreator samplerCreator = new DefaultSamplerCreator();
         HTTPSamplerBase sampler = new HTTPSampler();
@@ -3689,7 +4251,7 @@ public enum NativeSeedType {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -3699,9 +4261,16 @@ public enum NativeSeedType {
 
 **项目** `JMeter`  **文件** `jmeter/src/components/src/test/java/org/apache/jmeter/assertions/TestJSONPathAssertion.java`  **测试** `testGetResult_pathsWithOneResult`
 
-### 测试方法
+### Test method
 
 ```java
+@ParameterizedTest
+    @CsvSource(value={
+        "{\"myval\": 123}; $.myval; 123",
+        "{\"myval\": [{\"test\":1},{\"test\":2},{\"test\":3}]}; $.myval[*].test; 2",
+        "{\"myval\": []}; $.myval; []",
+        "{\"myval\": {\"key\": \"val\"}}; $.myval; \\{\"key\":\"val\"\\}"
+    }, delimiterString=";")
     void testGetResult_pathsWithOneResult(String data, String jsonPath, String expectedResult) {
         SampleResult samplerResult = new SampleResult();
         samplerResult.setResponseData(data.getBytes(Charset.defaultCharset()));
@@ -3717,7 +4286,7 @@ public enum NativeSeedType {
     }
 ```
 
-### 请判定
+### To classify
 
 `equivalence_class` / `semantic_role`
 
@@ -3727,10 +4296,10 @@ public enum NativeSeedType {
 
 **项目** `Avro`  **文件** `avro/lang/java/avro/src/test/java/org/apache/avro/io/TestResolvingIO.java`  **测试** `testIdentical`
 
-### 测试方法
+### Test method
 
 ```java
-  @ParameterizedTest
+@ParameterizedTest
   @MethodSource("data2")
   public void testIdentical(Encoding encoding, int skip, String jsonWriterSchema, String writerCalls,
       String jsonReaderSchema, String readerCalls) throws IOException {
@@ -3747,7 +4316,23 @@ public enum NativeSeedType {
   }
 ```
 
-### 请判定
+### Test-side helpers called by this test (2)
+
+> Parameter-dependent branching may live here rather than in the test body — check these before deciding.
+
+**`performTest`**
+
+```java
+    performTest(encoding, skip, jsonWriterSchema, writerCalls, jsonWriterSchema, writerCalls);
+```
+
+**`testOnce`**
+
+```java
+      testOnce(jsonWriterSchema, writerCalls, jsonReaderSchema, readerCalls, encoding, skipLevel);
+```
+
+### To classify
 
 `equivalence_class` / `semantic_role` / `methodsource_intent` / `value_complexity` / `behavior_carrying`
 

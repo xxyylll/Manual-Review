@@ -3,7 +3,9 @@
 Thank you for helping validate this codebook.
 
 You will classify **60 JUnit 5 parameterized tests**. All the code you need is in your
-packet (`packet_R*.md`) — you do not need to download or build any project.
+packet (`packet_R*.md`) — you do not need to download or build any project. Each item
+shows the test method (with its annotation and parameter values), the parameter provider
+or enum declaration where applicable, and any test-side helper methods the test calls.
 
 **What we are measuring.** We want to know whether this codebook is reproducible by
 someone other than its author. We are *not* testing you. If a case is genuinely
@@ -36,29 +38,42 @@ when it does not apply to that source (the table below says which apply).
 
 ## 1. `equivalence_class` — all sources
 
-**Question: does the parameter value cause the *test body* to run different testing
-logic?**
+**Question: does the parameter value cause the test to assert something different?**
 
-- **`same`** — every parameter set goes through the same test logic. Different inputs,
-  different expected values, different expected exceptions, different configurations,
-  and even success-vs-failure cases are all still `same`, as long as one code path
-  handles them.
-- **`different`** — the test body branches on the parameter (`if/else`, `switch`, or
-  equivalent) and the branch changes **the action performed, the assertion made, or the
-  oracle used**.
+Two steps, in order:
+
+1. **Is there parameter-dependent branching on the test side?** `if/else`, `switch`, or
+   equivalent, where the condition depends (directly or indirectly) on the parameter.
+   **This branching may live in a helper the test calls, not only in the test body** —
+   the helpers your packet shows under *Test-side helpers* are part of the test side, so
+   check them too.
+2. **If yes — does that branching further change the tested assertion?** Only then is it
+   `different`.
+
+- **`different`** — the branch changes the assertion made, the expected outcome, or the
+  oracle used.
+- **`same`** — everything else. This includes branching that only varies *setup* or
+  *arrangement* and then runs one common action with one common assertion. It also
+  includes different inputs, different expected values passed in as parameters, different
+  configurations, and success-vs-failure cases, as long as one assertion path handles them.
 
 ```java
-// same — one path, the expected value is just another parameter
+// same — one assertion path; the expected value is just another parameter
 void validate(String input, boolean expected) {
     assertEquals(expected, isValid(input));
 }
 
-// different — the parameter selects which assertion runs
+// same — the branch only builds a different fixture, then asserts the same thing
+Config c = useSsl ? sslConfig() : plainConfig();
+assertTrue(client.connect(c).isOpen());
+
+// different — the branch selects which assertion runs
 if (expectedValid) assertTrue(result.isValid());
 else               assertThrows(IllegalArgumentException.class, ...);
 ```
 
-A branch that only varies *setup* and then runs one common action is `same`.
+Production code behaving differently per parameter does **not** by itself make this
+`different` — the question is about the test's own assertions.
 
 ---
 
@@ -166,20 +181,29 @@ enum Case {                                          // data-carrying
 
 Inherited `name()` and `ordinal()` do **not** make an enum data-carrying.
 
-### 4b. `enum_exploitation` — look at the **test body**
+### 4b. `enum_exploitation` — look at the **test side**
 
-- **`shared-contract`** — the same test logic is applied uniformly across the selected
-  constants; the test asserts a contract that should hold for all of them.
-- **`semantic-specific`** — the test explicitly differentiates between enum values
-  through parameter-dependent logic: `if/else`, `switch`, different assertions, or
-  different actions.
+**Question: does the test side treat the enum constants differently?**
 
-This is about **test-side** differentiation. Production code behaving differently per
-constant does not by itself make this `semantic-specific`.
+- **`semantic-specific`** — there is test-side, enum-dependent differentiation:
+  `if/else`, `switch`, different assertions, or different actions keyed on the enum value.
+  **This differentiation counts whether it sits in the test body or in a helper the test
+  calls** — check the *Test-side helpers* section of the item before deciding.
+- **`shared-contract`** — no such differentiation; the same logic is applied uniformly
+  across the selected constants, asserting a contract that should hold for all of them.
 
-> This is a different question from `equivalence_class`. A test can branch on the enum
-> (`semantic-specific`) while still exercising one behavioural scenario with one kind of
-> expected outcome (`same`). Answer the two independently.
+Production code that behaves differently per constant does **not** make this
+`semantic-specific`. The differentiation has to be on the test side.
+
+> **How this relates to `equivalence_class`.** They are two steps of the same enquiry, so
+> answer `enum_exploitation` first:
+>
+> - no test-side differentiation → `shared-contract`, and `equivalence_class` is `same`.
+> - differentiation exists → `semantic-specific`; then ask whether that differentiation
+>   *further changes the tested assertion*. If it does, `equivalence_class` is
+>   `different`; if it only varies setup, it stays `same`.
+>
+> So `different` implies `semantic-specific`, but not the other way round.
 
 ### 4c. `behavior_carrying`
 
